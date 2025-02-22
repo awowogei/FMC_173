@@ -18,19 +18,24 @@ use fmc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::world::WorldProperties;
+use crate::{items::crafting::CraftingGrid, world::WorldProperties};
+
+use self::health::HealthBundle;
 
 mod hand;
-mod hotbar;
+mod health;
+mod inventory_interface;
 
 pub use hand::HandInteractions;
+pub use health::{DamageEvent, HealEvent, Health};
 
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<RespawnEvent>()
+            .add_plugins(inventory_interface::InventoryInterfacePlugin)
+            .add_plugins(health::HealthPlugin)
             .add_plugins(hand::HandPlugin)
-            .add_plugins(hotbar::HotbarPlugin)
             .add_systems(
                 Update,
                 (
@@ -53,22 +58,26 @@ pub enum GameMode {
 }
 
 #[derive(Component, Serialize, Deserialize, Deref, DerefMut, Clone)]
-pub struct Hotbar {
+pub struct Inventory {
     #[deref]
-    items: Vec<ItemStack>,
+    inventory: Vec<ItemStack>,
     equipped_item: usize,
 }
 
-impl Default for Hotbar {
+impl Default for Inventory {
     fn default() -> Self {
+        let capacity = 36;
+        let mut inventory = Vec::with_capacity(capacity);
+        inventory.resize_with(capacity, ItemStack::default);
+
         Self {
-            items: vec![ItemStack::default(); 9],
+            inventory,
             equipped_item: 0,
         }
     }
 }
 
-impl Hotbar {
+impl Inventory {
     pub fn held_item_stack(&self) -> &ItemStack {
         &self[self.equipped_item]
     }
@@ -79,13 +88,25 @@ impl Hotbar {
     }
 }
 
+// TODO: Move this into Inventory, no clue why I separated them
+#[derive(Component, Default, Serialize, Deserialize, Clone)]
+pub struct Equipment {
+    helmet: ItemStack,
+    chestplate: ItemStack,
+    leggings: ItemStack,
+    boots: ItemStack,
+}
+
 /// Default bundle used for new players.
 #[derive(Bundle)]
 pub struct PlayerBundle {
     transform: Transform,
     camera: Camera,
     aabb: Collider,
-    hotbar: Hotbar,
+    inventory: Inventory,
+    equipment: Equipment,
+    crafting_table: CraftingGrid,
+    health_bundle: HealthBundle,
     gamemode: GameMode,
 }
 
@@ -95,7 +116,10 @@ impl Default for PlayerBundle {
             transform: Transform::default(),
             camera: Camera::default(),
             aabb: Collider::from_min_max(DVec3::new(-0.3, 0.0, -0.3), DVec3::new(0.3, 1.8, 0.3)),
-            hotbar: Hotbar::default(),
+            inventory: Inventory::default(),
+            equipment: Equipment::default(),
+            crafting_table: CraftingGrid::with_size(4),
+            health_bundle: HealthBundle::default(),
             gamemode: GameMode::Survival,
         }
     }
@@ -110,7 +134,9 @@ impl From<PlayerSave> for PlayerBundle {
                 rotation: save.camera_rotation,
                 ..default()
             }),
-            hotbar: save.hotbar,
+            inventory: save.inventory,
+            equipment: save.equipment,
+            health_bundle: HealthBundle::from_health(save.health),
             gamemode: save.game_mode,
             ..default()
         }
@@ -125,7 +151,9 @@ pub struct PlayerSave {
     position: DVec3,
     camera_position: DVec3,
     camera_rotation: DQuat,
-    hotbar: Hotbar,
+    inventory: Inventory,
+    equipment: Equipment,
+    health: Health,
     game_mode: GameMode,
 }
 
@@ -220,14 +248,24 @@ fn add_players(
 fn save_player_data(
     database: Res<Database>,
     mut network_events: EventReader<NetworkEvent>,
-    mut players: Query<(&Player, &Transform, &Camera, &Hotbar, &GameMode)>,
+    mut players: Query<(
+        &Player,
+        &Transform,
+        &Camera,
+        &Inventory,
+        &Equipment,
+        &Health,
+        &GameMode,
+    )>,
 ) {
     for network_event in network_events.read() {
         let NetworkEvent::Disconnected { entity } = network_event else {
             continue;
         };
 
-        let Ok((player, transform, camera, hotbar, game_mode)) = players.get_mut(*entity) else {
+        let Ok((player, transform, camera, inventory, equipment, health, game_mode)) =
+            players.get_mut(*entity)
+        else {
             continue;
         };
 
@@ -235,7 +273,9 @@ fn save_player_data(
             position: transform.translation,
             camera_position: camera.translation,
             camera_rotation: camera.rotation,
-            hotbar: hotbar.clone(),
+            inventory: inventory.clone(),
+            equipment: equipment.clone(),
+            health: health.clone(),
             game_mode: *game_mode,
         }
         .save(&player.username, &database);
@@ -259,6 +299,7 @@ fn respawn_players(
     world_map: Res<WorldMap>,
     database: Res<Database>,
     mut player_query: Query<&mut Transform, With<Player>>,
+    mut heal_events: EventWriter<HealEvent>,
     mut respawn_events: EventReader<RespawnEvent>,
 ) {
     for respawn_event in respawn_events.read() {
@@ -306,6 +347,11 @@ fn respawn_players(
         let mut player_transform = player_query.get_mut(respawn_event.player_entity).unwrap();
         player_transform.translation = spawn_position;
 
+        heal_events.send(HealEvent {
+            player_entity: respawn_event.player_entity,
+            healing: u32::MAX,
+        });
+
         net.send_one(
             respawn_event.player_entity,
             messages::PlayerPosition {
@@ -346,6 +392,10 @@ fn on_gamemode_update(
 
         match gamemode {
             GameMode::Creative => {
+                let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
+                health_visibility.set_hidden("health".to_owned());
+                net.send_one(player_entity, health_visibility);
+
                 net.send_one(
                     player_entity,
                     messages::Plugin::Enable("creative".to_owned()),
@@ -353,6 +403,10 @@ fn on_gamemode_update(
                 *current_movement_function = Some("creative".to_owned());
             }
             GameMode::Survival => {
+                let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
+                health_visibility.set_visible("health".to_owned());
+                net.send_one(player_entity, health_visibility);
+
                 net.send_one(
                     player_entity,
                     messages::Plugin::Enable("movement".to_owned()),

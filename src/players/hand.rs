@@ -16,7 +16,7 @@ use fmc::{
 
 use crate::{
     items::{DroppedItem, ItemRegistry, ItemUseSystems, ItemUses},
-    players::Hotbar,
+    players::Inventory,
 };
 
 pub struct HandPlugin;
@@ -107,7 +107,7 @@ fn break_blocks(
     net: Res<Server>,
     items: Res<Items>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
-    hotbar_query: Query<&Hotbar, With<Player>>,
+    inventory_query: Query<&Inventory, With<Player>>,
     mut model_query: Query<(&mut Model, &mut ModelVisibility), With<BreakingBlockMarker>>,
     mut block_update_writer: EventWriter<BlockUpdate>,
     mut mining_events: ResMut<MiningEvents>,
@@ -128,9 +128,9 @@ fn break_blocks(
             continue;
         };
 
-        let hotbar = hotbar_query.get(player_entity).unwrap();
+        let inventory = inventory_query.get(player_entity).unwrap();
 
-        let tool_config = if let Some(item) = hotbar.held_item_stack().item() {
+        let tool_config = if let Some(item) = inventory.held_item_stack().item() {
             Some(items.get_config(&item.id))
         } else {
             None
@@ -484,7 +484,7 @@ fn handle_right_clicks(
     model_map: Res<ModelMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
-    mut player_query: Query<(&mut Hotbar, &Targets), With<Player>>,
+    mut player_query: Query<(&mut Inventory, &Targets), With<Player>>,
     mut item_use_query: Query<&mut ItemUses>,
     mut hand_interaction_query: Query<&mut HandInteractions>,
     mut block_update_writer: EventWriter<BlockUpdate>,
@@ -502,7 +502,7 @@ fn handle_right_clicks(
     }
 
     for right_click in clicks.read() {
-        let (mut hotbar, targets) = player_query.get_mut(right_click.player_entity).unwrap();
+        let (mut inventory, targets) = player_query.get_mut(right_click.player_entity).unwrap();
 
         let mut action = ActionOrder::Interact;
 
@@ -538,7 +538,7 @@ fn handle_right_clicks(
                     };
 
                     let blocks = Blocks::get();
-                    let equipped_item_stack = hotbar.held_item_stack_mut();
+                    let equipped_item_stack = inventory.held_item_stack_mut();
 
                     if let Some((block_id, replaced_block_position)) = block_placement(
                         &equipped_item_stack,
@@ -607,7 +607,7 @@ fn handle_right_clicks(
                 }
                 ActionOrder::UseItem => {
                     // If nothing else was done, we try to use the item
-                    let equipped_item_stack = hotbar.held_item_stack_mut();
+                    let equipped_item_stack = inventory.held_item_stack_mut();
 
                     let Some(item) = equipped_item_stack.item() else {
                         break;

@@ -8,7 +8,7 @@ use fmc::{
     world::chunk::ChunkPosition,
 };
 
-use crate::players::Hotbar;
+use crate::players::{Health, Inventory};
 
 pub struct DroppedItemsPlugin;
 impl Plugin for DroppedItemsPlugin {
@@ -85,10 +85,14 @@ fn manage_item_models(
 fn pick_up_items(
     mut commands: Commands,
     model_map: Res<ModelMap>,
-    mut players: Query<(&GlobalTransform, &mut Hotbar), Changed<GlobalTransform>>,
+    mut players: Query<(&GlobalTransform, &mut Inventory, &Health), Changed<GlobalTransform>>,
     mut dropped_items: Query<(Entity, &mut DroppedItem, &Transform)>,
 ) {
-    for (player_position, mut player_hotbar) in players.iter_mut() {
+    for (player_position, mut player_inventory, health) in players.iter_mut() {
+        if health.is_dead() {
+            continue;
+        }
+
         let chunk_position = ChunkPosition::from(player_position.translation());
         let item_entities = match model_map.get_entities(&chunk_position) {
             Some(e) => e,
@@ -103,10 +107,10 @@ fn pick_up_items(
                     < 2.0
                 {
                     // First test that the item can be picked up. This is to avoid triggering
-                    // change detection for the hotbar. If detection is triggered, it will send
+                    // change detection for the inventory. If detection is triggered, it will send
                     // an interface update to the client. Can't pick up = spam
                     let mut capacity = false;
-                    for item_stack in player_hotbar.iter() {
+                    for item_stack in player_inventory.iter() {
                         if (item_stack.item() == dropped_item.item()
                             && item_stack.remaining_capacity() != 0)
                             || item_stack.is_empty()
@@ -120,7 +124,7 @@ fn pick_up_items(
                     }
 
                     // First try to fill item stacks that already have the item
-                    for item_stack in player_hotbar.iter_mut() {
+                    for item_stack in player_inventory.iter_mut() {
                         if item_stack.item() == dropped_item.item() {
                             dropped_item.transfer_to(item_stack, u32::MAX);
                         }
@@ -136,7 +140,7 @@ fn pick_up_items(
                     }
 
                     // Then go again and fill empty spots
-                    for item_stack in player_hotbar.iter_mut() {
+                    for item_stack in player_inventory.iter_mut() {
                         if item_stack.is_empty() {
                             dropped_item.transfer_to(item_stack, u32::MAX);
                         }

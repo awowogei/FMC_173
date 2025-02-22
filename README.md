@@ -1,9 +1,10 @@
-# FMC Vanilla
+# 173
 
-Bare-bones implementation of an fmc server
+The beta
 
 ## Licensing
-All code in this repository is dual-licensed under either:
+The repository is licensed [GPLv3](./LICENSE) with the following exceptions:
 
-* MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+You have permission to link to the program in order to use or create plugins
+that can be loaded by the program at runtime. You can copy and distribute
+plugins under license terms not compatible with the GPLv3.
