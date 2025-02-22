@@ -1,6 +1,7 @@
 mod assets;
 pub mod chat;
 pub mod items;
+pub mod mobs;
 pub mod players;
 pub mod settings;
 pub mod skybox;
@@ -25,6 +26,7 @@ impl PluginGroup for DefaultPlugins {
             .add(players::PlayerPlugin)
             .add(world::WorldPlugin)
             .add(skybox::SkyPlugin)
+            .add(mobs::MobsPlugin)
             .add(chat::ChatPlugin)
     }
 }

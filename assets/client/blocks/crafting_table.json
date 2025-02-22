@@ -1,0 +1,43 @@
+{
+    "parent": "default_block.json",
+    "name": "crafting_table",
+    "faces": {
+        "top": "crafting_table_top.png",
+        "bottom": "oak_planks.png",
+        "left": "crafting_table_side.png",
+        "right": "crafting_table_side.png",
+        "front": "crafting_table_side.png",
+        "back": "crafting_table_side.png"
+    },
+    "tools": ["axe"],
+    "drop": {
+        "requires_tool": false,
+        "drop": "crafting_table"
+    },
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "step": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    }
+}

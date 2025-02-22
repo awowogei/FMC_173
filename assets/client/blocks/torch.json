@@ -1,0 +1,51 @@
+{
+    "type": "model",
+    "name": "torch",
+    "model": "torch",
+    "light": 14,
+    "drag": [0.90, 0.02, 0.90],
+    "hardness": 0,
+    "drop": {
+        "requires_tool": false,
+        "drop": "torch"
+    },
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    },
+    "placement": {
+        "ceiling": false,
+        "sides": true,
+        "floor": true,
+        "centered": true,
+        "rotatable": true,
+        "rotation_transform": {
+            "translation": [
+                0.0,
+                0.2206,
+                -0.5
+            ],
+            "rotation": [
+                0.191,
+                0,
+                0,
+                0.982
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ]
+        }
+    }
+}

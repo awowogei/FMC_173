@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "crafting_table_top.png",
+        "bottom": "oak_planks.png",
+        "left": "crafting_table_side.png",
+        "right": "crafting_table_side.png",
+        "front": "crafting_table_side.png",
+        "back": "crafting_table_side.png"
+    }
+}
