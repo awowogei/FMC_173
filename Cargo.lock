@@ -1708,6 +1708,7 @@ dependencies = [
 [[package]]
 name = "fmc"
 version = "0.0.3"
+source = "git+https://github.com/formulaicgame/fmc#ecb09fdbd2e156d04114e38e6b3b65fe5aca2532"
 dependencies = [
  "bevy",
  "bincode",
