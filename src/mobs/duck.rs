@@ -4,7 +4,7 @@ use fmc::{
     bevy::math::DVec3,
     blocks::{BlockPosition, Blocks},
     items::Items,
-    models::{Model, ModelAnimations, Models},
+    models::{AnimationPlayer, Model, Models},
     physics::{Buoyancy, Collider, Physics},
     players::Player,
     prelude::*,
@@ -50,19 +50,19 @@ fn spawn_duck(
     if time.elapsed_secs() < 1.0 || duck.iter().count() == 1 {
         return;
     }
-    if !world_map.contains_chunk(&ChunkPosition::new(-16, 0, 0)) {
+    if !world_map.contains_chunk(&ChunkPosition::new(64, 0, 16)) {
         return;
     }
     let duck_model = models.get_by_name("duck");
 
-    let mut animations = ModelAnimations::default();
-    animations.play_on_move(Some(duck_model.animations["walk"]));
+    let mut animations = AnimationPlayer::default();
+    animations.set_move_animation(Some(duck_model.animations["walk"]));
 
     commands.spawn((
         Duck::default(),
         Model::Asset(duck_model.id),
         animations,
-        Transform::from_xyz(-30.0, 2.0, -1.0),
+        Transform::from_xyz(67.0, 7.0, 24.0),
         Collider::Aabb(duck_model.aabb.clone()),
         Physics {
             buoyancy: Some(Buoyancy {

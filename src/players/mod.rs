@@ -5,7 +5,7 @@ use fmc::{
     blocks::{BlockPosition, Blocks},
     database::Database,
     items::ItemStack,
-    models::{Model, Models},
+    models::{AnimationPlayer, Model, Models},
     networking::{NetworkEvent, NetworkMessage, Server},
     physics::Collider,
     players::{Camera, Player},
@@ -229,19 +229,21 @@ fn add_players(
             },
         );
 
+        let model = models.get_by_name("player");
+
+        let mut animation_player = AnimationPlayer::default();
+        animation_player.set_move_animation(Some(model.animations["walk"]));
+        animation_player.set_idle_animation(Some(model.animations["idle"]));
+
+        let model_entity = commands
+            .spawn(Model::Asset(model.id))
+            .set_parent(player_entity)
+            .id();
+        animation_player.set_target(model_entity);
+
         commands
             .entity(player_entity)
-            .insert(bundle)
-            .with_children(|parent| {
-                parent.spawn((
-                    Model::Asset(models.get_by_name("player").id),
-                    Transform {
-                        //translation: player_bundle.camera.translation - player_bundle.camera.translation.y,
-                        translation: DVec3::Z * 0.3 + DVec3::X * 0.3,
-                        ..default()
-                    },
-                ));
-            });
+            .insert((bundle, animation_player));
     }
 }
 

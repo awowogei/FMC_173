@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use fmc::{
     bevy::math::DVec3,
     blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, Blocks},
     items::{ItemStack, Items},
-    models::{Model, ModelMap, ModelVisibility},
+    models::{AnimationPlayer, Model, ModelMap, ModelVisibility, Models},
     networking::{NetworkMessage, Server},
     physics::{shapes::Aabb, Collider},
     players::{Camera, Player, Target, Targets},
@@ -51,13 +51,30 @@ impl HandInteractions {
 
 fn handle_left_clicks(
     mut clicks: EventReader<NetworkMessage<messages::LeftClick>>,
-    player_query: Query<(&Targets, &Camera, &GlobalTransform), With<Player>>,
-    mut block_breaking_events: ResMut<MiningEvents>,
+    models: Res<Models>,
+    mut player_query: Query<
+        (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
+        With<Player>,
+    >,
+    mut mining_events: ResMut<MiningEvents>,
+    mut animation_tracker: Local<HashSet<Entity>>,
 ) {
     for click in clicks.read() {
-        let (targets, camera, transform) = player_query.get(click.player_entity).unwrap();
+        let (targets, camera, transform, mut animation_player) =
+            player_query.get_mut(click.player_entity).unwrap();
 
         let camera_position = transform.translation() + camera.translation;
+
+        let model = models.get_by_name("player");
+        let animation = animation_player.play(model.animations["hit"]);
+
+        if click.message == messages::LeftClick::Release {
+            animation_tracker.remove(&click.player_entity);
+        } else if animation_tracker.insert(click.player_entity) {
+            // If it is a fresh click we always restart the animation. More responsive and let's
+            // you use it to signal others by clicking fast.
+            animation.restart();
+        }
 
         for target in targets.iter() {
             match target {
@@ -72,7 +89,7 @@ fn handle_left_clicks(
 
                     if block_config.hardness.is_some() {
                         let hit_position = camera_position + camera.forward() * *distance;
-                        block_breaking_events.insert(
+                        mining_events.insert(
                             *block_position,
                             (click.player_entity, *block_id, *block_face, hit_position),
                         );
