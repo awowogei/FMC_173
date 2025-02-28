@@ -506,6 +506,7 @@ fn handle_right_clicks(
     mut hand_interaction_query: Query<&mut HandInteractions>,
     mut block_update_writer: EventWriter<BlockUpdate>,
     mut clicks: EventReader<NetworkMessage<messages::RightClick>>,
+    mut click_tracker: Local<HashSet<Entity>>,
     mut rng: Local<Rng>,
 ) {
     // TODO: ActionOrder currently does nothing, but there needs to be some system for deviating
@@ -519,6 +520,13 @@ fn handle_right_clicks(
     }
 
     for right_click in clicks.read() {
+        if right_click.message == messages::RightClick::Release {
+            click_tracker.remove(&right_click.player_entity);
+            continue;
+        } else if !click_tracker.insert(right_click.player_entity) {
+            continue;
+        }
+
         let (mut inventory, targets) = player_query.get_mut(right_click.player_entity).unwrap();
 
         let mut action = ActionOrder::Interact;
