@@ -1,0 +1,7 @@
+{
+    "name": "Furnace",
+    "image": "furnace.png",
+    "block": "furnace",
+    "equip_model": "furnace",
+    "stack_size": 64
+}

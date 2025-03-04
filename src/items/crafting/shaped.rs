@@ -97,7 +97,8 @@ impl Recipe {
                 item_stack.take(required * amount);
             });
 
-        let output = self.output.clone().set_size(amount * self.output.size());
+        let mut output = self.output.clone();
+        output.set_size(amount * self.output.size());
 
         return Some(output);
     }

@@ -1,0 +1,46 @@
+{
+    "parent": "default_block.json",
+    "name": "furnace_on",
+    "faces": {
+        "top": "furnace_top.png",
+        "bottom": "furnace_top.png",
+        "left": "furnace_side.png",
+        "right": "furnace_side.png",
+        "front": "furnace_front_on.png",
+        "back": "furnace_side.png"
+    },
+    "tools": ["pickaxe"],
+    "drop": {
+        "requires_tool": true,
+        "drop": "furnace"
+    },
+    "placement": {
+        "rotatable": true
+    },
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    }
+}

@@ -98,6 +98,7 @@ fn grow(
             position: *block_position,
             block_id,
             block_state: None,
+            keep_entity: false,
         });
     }
 }

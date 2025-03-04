@@ -56,6 +56,7 @@ fn fragile_break(
                         position,
                         block_id: Blocks::get().get_id("air"),
                         block_state: None,
+                        keep_entity: false,
                     });
 
                     let block_config = Blocks::get().get_config(&torch_id);
