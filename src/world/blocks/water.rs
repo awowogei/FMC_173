@@ -820,6 +820,7 @@ fn spread_water(
                 position,
                 block_id,
                 block_state,
+                keep_entity: false,
             })
         }));
     }

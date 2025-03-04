@@ -1,0 +1,11 @@
+[
+    {
+        "collection_name": "smelting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["dirt", 1]]
+        ],
+        "output_item": "bread",
+        "output_amount": 1
+    }
+]

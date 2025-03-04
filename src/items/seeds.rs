@@ -73,6 +73,7 @@ fn use_seeds(
             position: *block_position + IVec3::Y,
             block_id: Blocks::get().get_id("wheat_0"),
             block_state: None,
+            keep_entity: false,
         });
     }
 }

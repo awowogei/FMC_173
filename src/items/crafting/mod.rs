@@ -242,9 +242,8 @@ impl RecipeCollection {
                 return None;
             }
 
-            let item_stack = recipe
-                .output()
-                .clone()
+            let mut item_stack = recipe.output().clone();
+            item_stack
                 .set_size(max_craft)
                 .set_capacity(recipe.output().size());
 

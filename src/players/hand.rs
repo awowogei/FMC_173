@@ -275,6 +275,7 @@ fn break_blocks(
                 position: block_position,
                 block_id: blocks.get_id("air"),
                 block_state: None,
+                keep_entity: false,
             });
 
             let (dropped_item_id, count) = match block_config.drop(tool_config) {
@@ -295,7 +296,9 @@ fn break_blocks(
                     build_breaking_model(),
                     // The model shouldn't show until some progress has been made
                     ModelVisibility::Hidden,
-                    Transform::from_translation(block_position.as_dvec3()),
+                    Transform::from_translation(block_position.as_dvec3() + DVec3::splat(0.5))
+                        // Scale a little so it envelops the block
+                        .with_scale(DVec3::splat(1.001)),
                     BreakingBlockMarker,
                 ))
                 .id();
@@ -402,35 +405,35 @@ fn break_particles(
 fn build_breaking_model() -> Model {
     let mesh_vertices = vec![
         // Top
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [1.0, 1.0, 0.0],
-        [1.0, 1.0, 1.0],
+        [-0.5, 0.5, -0.5],
+        [-0.5, 0.5, 0.5],
+        [0.5, 0.5, -0.5],
+        [0.5, 0.5, 0.5],
         // Back
-        [1.0, 1.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0],
+        [0.5, 0.5, -0.5],
+        [0.5, -0.5, -0.5],
+        [-0.5, 0.5, -0.5],
+        [-0.5, -0.5, -0.5],
         // Left
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [0.0, 0.0, 1.0],
+        [-0.5, 0.5, -0.5],
+        [-0.5, -0.5, -0.5],
+        [-0.5, 0.5, 0.5],
+        [-0.5, -0.5, 0.5],
         // Right
-        [1.0, 1.0, 1.0],
-        [1.0, 0.0, 1.0],
-        [1.0, 1.0, 0.0],
-        [1.0, 0.0, 0.0],
+        [0.5, 0.5, 0.5],
+        [0.5, -0.5, 0.5],
+        [0.5, 0.5, -0.5],
+        [0.5, -0.5, -0.5],
         // Front
-        [0.0, 1.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [1.0, 0.0, 1.0],
+        [-0.5, 0.5, 0.5],
+        [-0.5, -0.5, 0.5],
+        [0.5, 0.5, 0.5],
+        [0.5, -0.5, 0.5],
         // Bottom
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
+        [-0.5, -0.5, 0.5],
+        [-0.5, -0.5, -0.5],
+        [0.5, -0.5, 0.5],
+        [0.5, -0.5, -0.5],
     ];
 
     let mesh_normals = vec![
@@ -501,7 +504,7 @@ fn handle_right_clicks(
     model_map: Res<ModelMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
-    mut player_query: Query<(&mut Inventory, &Targets), With<Player>>,
+    mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
     mut item_use_query: Query<&mut ItemUses>,
     mut hand_interaction_query: Query<&mut HandInteractions>,
     mut block_update_writer: EventWriter<BlockUpdate>,
@@ -519,7 +522,8 @@ fn handle_right_clicks(
     }
 
     for right_click in clicks.read() {
-        let (mut inventory, targets) = player_query.get_mut(right_click.player_entity).unwrap();
+        let (mut inventory, targets, camera) =
+            player_query.get_mut(right_click.player_entity).unwrap();
 
         let mut action = ActionOrder::Interact;
 
@@ -567,7 +571,7 @@ fn handle_right_clicks(
                         &world_map,
                     ) {
                         let block_config = blocks.get_config(&block_id);
-                        let block_state = block_config.placement_rotation(*block_face);
+                        let block_state = block_config.placement_rotation(*block_face, camera);
 
                         let replaced_collider = Collider::Aabb(Aabb {
                             center: replaced_block_position.as_dvec3(),
@@ -615,6 +619,7 @@ fn handle_right_clicks(
                             position: replaced_block_position,
                             block_id,
                             block_state,
+                            keep_entity: false,
                         });
 
                         break;

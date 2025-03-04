@@ -1,0 +1,300 @@
+{
+    "style": {
+        "margin": {
+            "left": "Auto",
+            "right": "Auto",
+            "top": "Auto",
+            "bottom": "Auto" 
+        }
+    },
+    "exclusive": true,
+    "image": "furnace.png",
+    "content": {
+        "Nodes": [
+            {
+                "path": "hotbar",
+                "style": {
+                    "position_type": "Absolute",
+                    "left": {
+                        "Px": 10
+                    },
+                    "top": {
+                        "Px": 146
+                    },
+                    "width": {
+                        "Px": 168
+                    },
+                    "height": {
+                        "Px": 16
+                    },
+                    "column_gap": {
+                        "Px": 5
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            },
+            {
+                "path": "inventory",
+                "style": {
+                    "position_type": "Absolute",
+                    "flex_wrap": "Wrap",
+                    "left": {
+                        "Px": 10
+                    },
+                    "top": {
+                        "Px": 80
+                    },
+                    "width": {
+                        "Px": 168
+                    },
+                    "height": {
+                        "Px": 16
+                    },
+                    "column_gap": {
+                        "Px": 5
+                    },
+                    "row_gap": {
+                        "Px": 4
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            },
+            {
+                "path": "furnace/fuel",
+                "style": {
+                    "position_type": "Absolute",
+                    "left": {
+                        "Px": 63
+                    },
+                    "top": {
+                        "Px": 52
+                    },
+                    "width": {
+                        "Px": 16
+                    },
+                    "height": {
+                        "Px": 16
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true,
+                        "allowed_item_types": ["fuel"]
+                    }
+                }
+            },
+            {
+                "path": "furnace/crucible",
+                "style": {
+                    "position_type": "Absolute",
+                    "left": {
+                        "Px": 63
+                    },
+                    "top": {
+                        "Px": 15
+                    },
+                    "width": {
+                        "Px": 16
+                    },
+                    "height": {
+                        "Px": 16
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            },
+            {
+                "path": "furnace/output",
+                "style": {
+                    "position_type": "Absolute",
+                    "left": {
+                        "Px": 109
+                    },
+                    "top": {
+                        "Px": 33
+                    },
+                    "width": {
+                        "Px": 16
+                    },
+                    "height": {
+                        "Px": 16
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allowed_item_types": []
+                    }
+                }
+            },
+            {
+                "path": "furnace/fire",
+                "style": {
+                    "position_type": "Absolute",
+                    "flex_direction": "ColumnReverse",
+                    "left": {
+                        "Px": 63
+                    },
+                    "top": {
+                        "Px": 35
+                    },
+                    "width": {
+                        "Px": 13
+                    },
+                    "height": {
+                        "Px": 12
+                    }
+                },
+                "content": {
+                    "Nodes": [
+                        {
+                            "path": "0",
+                            "image": "furnace_flames_1.png"
+                        },
+                        {
+                            "path": "1",
+                            "image": "furnace_flames_2.png"
+                        },
+                        {
+                            "path": "2",
+                            "image": "furnace_flames_3.png"
+                        },
+                        {
+                            "path": "3",
+                            "image": "furnace_flames_4.png"
+                        },
+                        {
+                            "path": "4",
+                            "image": "furnace_flames_5.png"
+                        },
+                        {
+                            "path": "5",
+                            "image": "furnace_flames_6.png"
+                        },
+                        {
+                            "path": "6",
+                            "image": "furnace_flames_7.png"
+                        },
+                        {
+                            "path": "7",
+                            "image": "furnace_flames_8.png"
+                        },
+                        {
+                            "path": "8",
+                            "image": "furnace_flames_9.png"
+                        },
+                        {
+                            "path": "9",
+                            "image": "furnace_flames_10.png"
+                        },
+                        {
+                            "path": "10",
+                            "image": "furnace_flames_11.png"
+                        },
+                        {
+                            "path": "11",
+                            "image": "furnace_flames_12.png"
+                        }
+                    ]
+                }
+            },
+            {
+                "path": "furnace/progress",
+                "style": {
+                    "position_type": "Absolute",
+                    "align_items": "Center",
+                    "left": {
+                        "Px": 85
+                    },
+                    "top": {
+                        "Px": 34
+                    },
+                    "width": {
+                        "Px": 16
+                    },
+                    "height": {
+                        "Px": 14
+                    }
+                },
+                "content": {
+                    "Nodes": [
+                        {
+                            "path": "0",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "1",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "2",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "3",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "4",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "5",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "6",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "7",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "8",
+                            "image": "furnace_progress_bar.png"
+                        },
+                        {
+                            "path": "9",
+                            "image": "furnace_progress_arrow_1.png"
+                        },
+                        {
+                            "path": "10",
+                            "image": "furnace_progress_arrow_2.png"
+                        },
+                        {
+                            "path": "11",
+                            "image": "furnace_progress_arrow_3.png"
+                        },
+                        {
+                            "path": "12",
+                            "image": "furnace_progress_arrow_4.png"
+                        },
+                        {
+                            "path": "13",
+                            "image": "furnace_progress_arrow_5.png"
+                        },
+                        {
+                            "path": "14",
+                            "image": "furnace_progress_arrow_6.png"
+                        },
+                        {
+                            "path": "15",
+                            "image": "furnace_progress_arrow_7.png"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "furnace_top.png",
+        "bottom": "furnace_top.png",
+        "left": "furnace_side.png",
+        "right": "furnace_side.png",
+        "front": "furnace_front.png",
+        "back": "furnace_side.png"
+    }
+}

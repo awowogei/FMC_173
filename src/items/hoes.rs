@@ -107,6 +107,7 @@ fn use_hoe(
             position: *block_position,
             block_id: soil_id,
             block_state: None,
+            keep_entity: false,
         });
     }
 }
