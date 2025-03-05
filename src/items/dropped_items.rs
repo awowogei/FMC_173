@@ -74,7 +74,6 @@ fn manage_item_models(
             let velocity_y = 6.5;
 
             entity_commands.insert(Physics {
-                enabled: true,
                 velocity: DVec3::new(velocity_x, velocity_y, velocity_z),
                 ..default()
             });
