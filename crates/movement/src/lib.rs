@@ -148,8 +148,7 @@ impl Movement {
         let mut friction = Vec3::ZERO;
         for velocity in [
             Vec3::new(0.0, self.velocity.y, 0.0),
-            Vec3::new(self.velocity.x, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, self.velocity.z),
+            Vec3::new(self.velocity.x, 0.0, self.velocity.z),
         ] {
             let pos_after_move = player_transform.translation + velocity * delta_time;
 
