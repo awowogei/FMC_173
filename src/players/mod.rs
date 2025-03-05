@@ -4,10 +4,13 @@ use fmc::{
     bevy::math::{DQuat, DVec3},
     blocks::{BlockPosition, Blocks},
     database::Database,
+    interfaces::{
+        HeldInterfaceStack, InterfaceEventRegistration, InterfaceEvents, RegisterInterfaceNode,
+    },
     items::ItemStack,
     models::{AnimationPlayer, Model, Models},
     networking::{NetworkEvent, NetworkMessage, Server},
-    physics::Collider,
+    physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     protocol::messages,
@@ -18,7 +21,10 @@ use fmc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{items::crafting::CraftingGrid, world::WorldProperties};
+use crate::{
+    items::{crafting::CraftingGrid, DroppedItem},
+    world::WorldProperties,
+};
 
 use self::health::HealthBundle;
 
@@ -43,6 +49,7 @@ impl Plugin for PlayerPlugin {
                     (add_players, apply_deferred).chain(),
                     respawn_players,
                     rotate_player_model,
+                    discard_items.after(InterfaceEventRegistration),
                 ),
             )
             // Save player after all remaining events have been handled. Avoid dupes and other
@@ -198,6 +205,7 @@ fn add_players(
     database: Res<Database>,
     models: Res<Models>,
     mut respawn_events: EventWriter<RespawnEvent>,
+    mut registration_events: EventWriter<RegisterInterfaceNode>,
     added_players: Query<(Entity, &Player), Added<Player>>,
 ) {
     for (player_entity, player) in added_players.iter() {
@@ -241,9 +249,17 @@ fn add_players(
             .id();
         animation_player.set_target(model_entity);
 
+        let discard_items_entity = commands.spawn(DiscardItems).id();
+        registration_events.send(RegisterInterfaceNode {
+            player_entity,
+            node_path: "".to_owned(),
+            node_entity: discard_items_entity,
+        });
+
         commands
             .entity(player_entity)
-            .insert((bundle, animation_player));
+            .insert((bundle, animation_player))
+            .add_child(discard_items_entity);
     }
 }
 
@@ -414,6 +430,41 @@ fn on_gamemode_update(
                     messages::Plugin::Enable("movement".to_owned()),
                 );
                 *current_movement_function = Some("movement".to_owned());
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+struct DiscardItems;
+
+fn discard_items(
+    mut commands: Commands,
+    mut inventory_query: Query<(&mut HeldInterfaceStack, &GlobalTransform, &Camera), With<Player>>,
+    mut interface_events: Query<
+        (&mut InterfaceEvents, &Parent),
+        (Changed<InterfaceEvents>, With<DiscardItems>),
+    >,
+) {
+    for (mut interface_events, parent) in interface_events.iter_mut() {
+        let (mut held_item, transform, camera) = inventory_query.get_mut(parent.get()).unwrap();
+        for event in interface_events.read() {
+            if let messages::InterfaceInteraction::PlaceItem { quantity, .. } = *event {
+                let discarded = held_item.take(quantity);
+                if discarded.size() == 0 {
+                    continue;
+                }
+
+                let dropped_item_position =
+                    transform.translation() + camera.translation + camera.forward();
+                commands.spawn((
+                    DroppedItem::new(discarded),
+                    Transform::from_translation(dropped_item_position),
+                    Physics {
+                        velocity: camera.forward() * 12.0,
+                        ..default()
+                    },
+                ));
             }
         }
     }
