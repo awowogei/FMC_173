@@ -271,11 +271,11 @@ fn break_blocks(
             //     position: IVec3,
             //     something to signify if it should drop
             // })
-            block_update_writer.send(BlockUpdate::Change {
+            block_update_writer.send(BlockUpdate::Replace {
                 position: block_position,
                 block_id: blocks.get_id("air"),
                 block_state: None,
-                keep_entity: false,
+                block_data: None,
             });
 
             let (dropped_item_id, count) = match block_config.drop(tool_config) {
@@ -615,11 +615,11 @@ fn handle_right_clicks(
                             }
                         }
 
-                        block_update_writer.send(BlockUpdate::Change {
+                        block_update_writer.send(BlockUpdate::Replace {
                             position: replaced_block_position,
                             block_id,
                             block_state,
-                            keep_entity: false,
+                            block_data: None,
                         });
 
                         break;

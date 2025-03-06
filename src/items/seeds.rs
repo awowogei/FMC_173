@@ -69,11 +69,11 @@ fn use_seeds(
             continue;
         }
 
-        block_update_writer.send(BlockUpdate::Change {
+        block_update_writer.send(BlockUpdate::Replace {
             position: *block_position + IVec3::Y,
             block_id: Blocks::get().get_id("wheat_0"),
             block_state: None,
-            keep_entity: false,
+            block_data: None,
         });
     }
 }

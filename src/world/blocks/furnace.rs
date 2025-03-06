@@ -167,15 +167,15 @@ struct FurnaceRegistry {
 }
 
 impl FurnaceRegistry {
-    fn remove_furnace(&mut self, crafting_table_entity: Entity) {
-        if let Some(player_entities) = self.furnace_to_players.remove(&crafting_table_entity) {
+    fn remove_furnace(&mut self, furnace_entity: Entity) {
+        if let Some(player_entities) = self.furnace_to_players.remove(&furnace_entity) {
             for entity in player_entities {
                 self.player_to_furnace.remove(&entity);
             }
         }
     }
 
-    fn set_active_furnace(&mut self, player_entity: Entity, crafting_table_entity: Entity) {
+    fn set_active_furnace(&mut self, player_entity: Entity, furnace_entity: Entity) {
         if let Some(old_table_entity) = self.player_to_furnace.remove(&player_entity) {
             self.furnace_to_players
                 .get_mut(&old_table_entity)
@@ -184,11 +184,10 @@ impl FurnaceRegistry {
         }
 
         self.furnace_to_players
-            .entry(crafting_table_entity)
+            .entry(furnace_entity)
             .or_default()
             .insert(player_entity);
-        self.player_to_furnace
-            .insert(player_entity, crafting_table_entity);
+        self.player_to_furnace.insert(player_entity, furnace_entity);
     }
 }
 
@@ -243,20 +242,18 @@ fn furnace(
         }
 
         if furnace.heat != 0.0 && !furnace.on {
-            block_update_writer.send(BlockUpdate::Change {
+            block_update_writer.send(BlockUpdate::Swap {
                 position: *block_position,
                 block_id: Blocks::get().get_id("furnace_on"),
                 block_state: world_map.get_block_state(*block_position),
-                keep_entity: true,
             });
 
             furnace.on = true;
         } else if furnace.heat == 0.0 && furnace.on {
-            block_update_writer.send(BlockUpdate::Change {
+            block_update_writer.send(BlockUpdate::Swap {
                 position: *block_position,
                 block_id: Blocks::get().get_id("furnace"),
                 block_state: world_map.get_block_state(*block_position),
-                keep_entity: true,
             });
 
             furnace.on = false;

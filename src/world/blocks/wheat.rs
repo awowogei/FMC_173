@@ -15,7 +15,16 @@ impl Plugin for WheatPlugin {
 #[derive(Component)]
 struct Wheat {
     stage: u8,
-    tick: u8,
+    grow_timer: Timer,
+}
+
+impl Default for Wheat {
+    fn default() -> Self {
+        Self {
+            stage: 0,
+            grow_timer: Timer::from_seconds(1.0, TimerMode::Repeating),
+        }
+    }
 }
 
 fn setup(mut blocks: ResMut<Blocks>) {
@@ -49,38 +58,66 @@ fn setup(mut blocks: ResMut<Blocks>) {
 }
 
 fn spawn_wheat_0(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 0, tick: 0 });
+    commands.insert(Wheat {
+        stage: 0,
+        ..default()
+    });
 }
 fn spawn_wheat_1(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 1, tick: 0 });
+    commands.insert(Wheat {
+        stage: 1,
+        ..default()
+    });
 }
 fn spawn_wheat_2(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 2, tick: 0 });
+    commands.insert(Wheat {
+        stage: 2,
+        ..default()
+    });
 }
 fn spawn_wheat_3(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 3, tick: 0 });
+    commands.insert(Wheat {
+        stage: 3,
+        ..default()
+    });
 }
 fn spawn_wheat_4(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 4, tick: 0 });
+    commands.insert(Wheat {
+        stage: 4,
+        ..default()
+    });
 }
 fn spawn_wheat_5(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 5, tick: 0 });
+    commands.insert(Wheat {
+        stage: 5,
+        ..default()
+    });
 }
 fn spawn_wheat_6(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
-    commands.insert(Wheat { stage: 6, tick: 0 });
+    commands.insert(Wheat {
+        stage: 6,
+        ..default()
+    });
 }
 
 // TODO: Make 'tick' increment randomly.
 // TODO: Only run this function at daytime?
 fn grow(
+    time: Res<Time>,
     mut growing: Query<(&mut Wheat, &BlockPosition)>,
     mut block_update_writer: EventWriter<BlockUpdate>,
 ) {
     for (mut wheat, block_position) in growing.iter_mut() {
-        if !wheat.tick != 30 {
-            wheat.tick += 1;
+        if wheat.stage == 6 {
             continue;
         }
+
+        wheat.grow_timer.tick(time.delta());
+        if !wheat.grow_timer.just_finished() {
+            continue;
+        }
+
+        wheat.stage += 1;
 
         let blocks = Blocks::get();
         let block_id = match wheat.stage {
@@ -94,11 +131,10 @@ fn grow(
             _ => unreachable!(),
         };
 
-        block_update_writer.send(BlockUpdate::Change {
+        block_update_writer.send(BlockUpdate::Swap {
             position: *block_position,
             block_id,
             block_state: None,
-            keep_entity: false,
         });
     }
 }
