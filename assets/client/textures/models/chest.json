@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "chest_top.png",
+        "bottom": "chest_top.png",
+        "left": "chest_side.png",
+        "right": "chest_side.png",
+        "front": "chest_front.png",
+        "back": "chest_side.png"
+    }
+}

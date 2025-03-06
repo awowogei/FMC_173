@@ -1,0 +1,7 @@
+{
+    "name": "Chest",
+    "image": "chest.png",
+    "block": "chest",
+    "equip_model": "chest",
+    "stack_size": 64
+}
