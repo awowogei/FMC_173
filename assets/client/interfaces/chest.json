@@ -1,0 +1,102 @@
+{
+    "style": {
+        "margin": {
+            "left": "Auto",
+            "right": "Auto",
+            "top": "Auto",
+            "bottom": "Auto" 
+        }
+    },
+    "exclusive": true,
+    "image": "chest.png",
+    "content": {
+        "Nodes": [
+            {
+                "path": "chest",
+                "style": {
+                    "position_type": "Absolute",
+                    "flex_wrap": "Wrap",
+                    "left": {
+                        "Px": 10
+                    },
+                    "top": {
+                        "Px": 11
+                    },
+                    "width": {
+                        "Px": 168
+                    },
+                    "height": {
+                        "Px": 16
+                    },
+                    "column_gap": {
+                        "Px": 5
+                    },
+                    "row_gap": {
+                        "Px": 4
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            },
+            {
+                "path": "hotbar",
+                "style": {
+                    "position_type": "Absolute",
+                    "left": {
+                        "Px": 10
+                    },
+                    "top": {
+                        "Px": 146
+                    },
+                    "width": {
+                        "Px": 168
+                    },
+                    "height": {
+                        "Px": 16
+                    },
+                    "column_gap": {
+                        "Px": 5
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            },
+            {
+                "path": "inventory",
+                "style": {
+                    "position_type": "Absolute",
+                    "flex_wrap": "Wrap",
+                    "left": {
+                        "Px": 10
+                    },
+                    "top": {
+                        "Px": 80
+                    },
+                    "width": {
+                        "Px": 168
+                    },
+                    "height": {
+                        "Px": 16
+                    },
+                    "column_gap": {
+                        "Px": 5
+                    },
+                    "row_gap": {
+                        "Px": 4
+                    }
+                },
+                "content": {
+                    "Items": {
+                        "allow_quick_place": true
+                    }
+                }
+            }
+        ]
+    }
+}

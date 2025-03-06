@@ -1,0 +1,46 @@
+{
+    "parent": "default_block.json",
+    "name": "chest",
+    "faces": {
+        "top": "chest_top.png",
+        "bottom": "chest_top.png",
+        "left": "chest_side.png",
+        "right": "chest_side.png",
+        "front": "chest_front.png",
+        "back": "chest_side.png"
+    },
+    "tools": ["axe"],
+    "drop": {
+        "requires_tool": false,
+        "drop": "chest"
+    },
+    "placement": {
+        "rotatable": true
+    },
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "step": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    }
+}
