@@ -816,11 +816,11 @@ fn spread_water(
                 Some(k) => k.clone(),
                 None => (air, None),
             };
-            Some(BlockUpdate::Change {
+            Some(BlockUpdate::Replace {
                 position,
                 block_id,
                 block_state,
-                keep_entity: false,
+                block_data: None,
             })
         }));
     }

@@ -52,11 +52,11 @@ fn fragile_break(
                             Some(BlockRotation::Left) => IVec3::NEG_X,
                             None => IVec3::Y,
                         };
-                    block_updates.send(BlockUpdate::Change {
+                    block_updates.send(BlockUpdate::Replace {
                         position,
                         block_id: Blocks::get().get_id("air"),
                         block_state: None,
-                        keep_entity: false,
+                        block_data: None,
                     });
 
                     let block_config = Blocks::get().get_config(&torch_id);

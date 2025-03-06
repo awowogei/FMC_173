@@ -103,11 +103,11 @@ fn use_hoe(
             }
         }
 
-        block_update_writer.send(BlockUpdate::Change {
+        block_update_writer.send(BlockUpdate::Replace {
             position: *block_position,
             block_id: soil_id,
             block_state: None,
-            keep_entity: false,
+            block_data: None,
         });
     }
 }
