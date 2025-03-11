@@ -12,8 +12,11 @@ use indexmap::{map::Entry, IndexMap};
 pub struct PathFinder {
     entity_width: usize,
     entity_height: usize,
-    block_goal: BlockPosition,
+    start: BlockPosition,
+    goal: BlockPosition,
     path: Vec<DVec3>,
+    // Holds indices into the path of the most direct path to the goal
+    shortcuts: Vec<DVec3>,
 }
 
 impl PathFinder {
@@ -21,21 +24,25 @@ impl PathFinder {
         return Self {
             entity_width: width,
             entity_height: height,
-            block_goal: BlockPosition::default(),
+            start: BlockPosition::default(),
+            goal: BlockPosition::default(),
             path: Vec::new(),
+            shortcuts: Vec::new(),
         };
     }
 
     pub fn find_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
         let block_start = BlockPosition::from(start);
         let block_goal = BlockPosition::from(goal);
-        if block_start != block_goal && self.block_goal != block_goal {
-            self.block_goal = block_goal;
+        if block_start != block_goal && self.goal != block_goal {
+            self.start = block_start;
+            self.goal = block_goal;
         } else {
             return;
         }
 
         self.path.clear();
+        self.shortcuts.clear();
 
         let mut queue = BinaryHeap::with_capacity(16_usize.pow(3));
         let mut node_map = IndexMap::new();
@@ -124,11 +131,22 @@ impl PathFinder {
 
     pub fn next_node(&mut self, current_postition: DVec3) -> Option<DVec3> {
         while let Some(next_position) = self.path.last() {
-            if next_position.xz().distance_squared(current_postition.xz()) >= 0.01 {
+            if next_position.xz().distance_squared(current_postition.xz()) >= 0.25 {
                 return Some(*next_position);
             }
 
             self.path.pop();
+        }
+        None
+    }
+
+    pub fn next_shortcut(&mut self, current_postition: DVec3) -> Option<DVec3> {
+        while let Some(next_position) = self.shortcuts.last() {
+            if next_position.xz().distance_squared(current_postition.xz()) >= 0.25 {
+                return Some(*next_position);
+            }
+
+            self.shortcuts.pop();
         }
         None
     }
@@ -147,7 +165,7 @@ impl PathFinder {
     }
 
     fn get_heuristic_cost(&self, position: BlockPosition) -> f32 {
-        position.distance_squared(*self.block_goal).abs() as f32
+        position.distance_squared(*self.goal).abs() as f32
         //let delta = (position - self.goal).abs().as_vec3();
 
         //return delta.x + delta.y + delta.z;
@@ -257,6 +275,32 @@ impl PathFinder {
         }
         // Same, but since the mob will already be at the start position, it can be removed.
         self.path.pop();
+
+        self.calc_shortcuts();
+    }
+
+    fn calc_shortcuts(&mut self) {
+        let start = self.start.as_dvec3();
+        let goal = self.path[0];
+        let mut distance = goal.distance_squared(start);
+
+        for position in self.path.iter().rev() {
+            let new_distance = position.distance_squared(goal);
+            // If it ever moves in a direction where the distance to the goal increases, it must
+            // mean it's pathing around something.
+            if new_distance > distance {
+                self.shortcuts.push(*position);
+            }
+            distance = new_distance;
+        }
+
+        if self.shortcuts.len() > self.path.len() {
+            panic!();
+        }
+
+        // The goal
+        self.shortcuts.push(goal);
+        self.shortcuts.reverse();
     }
 }
 
