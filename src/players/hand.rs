@@ -49,6 +49,22 @@ impl HandInteractions {
     }
 }
 
+/// Tracks which players have left clicked the entity
+#[derive(Component, Default)]
+pub struct HandHits {
+    player_entities: HashSet<Entity>,
+}
+
+impl HandHits {
+    pub fn iter(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.player_entities.iter().cloned()
+    }
+
+    pub fn push(&mut self, player_entity: Entity) {
+        self.player_entities.insert(player_entity);
+    }
+}
+
 fn handle_left_clicks(
     mut clicks: EventReader<NetworkMessage<messages::LeftClick>>,
     models: Res<Models>,
@@ -56,9 +72,14 @@ fn handle_left_clicks(
         (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
         With<Player>,
     >,
+    mut hittable_entities: Query<(&mut HandHits, Option<&ModelVisibility>)>,
     mut mining_events: ResMut<MiningEvents>,
-    mut animation_tracker: Local<HashSet<Entity>>,
+    mut click_tracker: Local<HashSet<Entity>>,
 ) {
+    for (mut hand_hits, _) in hittable_entities.iter_mut() {
+        hand_hits.player_entities.clear();
+    }
+
     for click in clicks.read() {
         let (targets, camera, transform, mut animation_player) =
             player_query.get_mut(click.player_entity).unwrap();
@@ -68,9 +89,11 @@ fn handle_left_clicks(
         let model = models.get_by_name("player");
         let animation = animation_player.play(model.animations["hit"]);
 
+        let mut first_click = false;
         if click.message == messages::LeftClick::Release {
-            animation_tracker.remove(&click.player_entity);
-        } else if animation_tracker.insert(click.player_entity) {
+            click_tracker.remove(&click.player_entity);
+        } else if click_tracker.insert(click.player_entity) {
+            first_click = true;
             // If it is a fresh click we always restart the animation. More responsive and let's
             // you use it to signal others by clicking fast.
             animation.restart();
@@ -95,6 +118,14 @@ fn handle_left_clicks(
                         );
 
                         break;
+                    }
+                }
+                Target::Entity { entity, .. } if first_click => {
+                    if let Ok((mut hits, maybe_visibility)) = hittable_entities.get_mut(*entity) {
+                        if matches!(maybe_visibility, Some(ModelVisibility::Hidden)) {
+                            continue;
+                        }
+                        hits.push(click.player_entity);
                     }
                 }
                 _ => continue,
@@ -486,7 +517,6 @@ fn build_breaking_model() -> Model {
         mesh_vertices,
         mesh_normals,
         mesh_uvs: Some(mesh_uvs),
-        material_base_color: "FFFFFF".to_owned(),
         material_color_texture: None,
         material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
         material_alpha_mode: 2,

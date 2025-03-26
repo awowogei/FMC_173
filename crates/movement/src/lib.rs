@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use fmc_client_api as fmc;
 use fmc_client_api::{math::BVec3, prelude::*};
+use serde::Deserialize;
 
 // sqrt(2 * gravity * wanted height(1.4)) + some for air resistance
 const JUMP_VELOCITY: f32 = 9.0;
@@ -35,6 +36,20 @@ impl fmc::Plugin for Movement {
         self.last_jump += self.delta_time;
         self.accelerate();
         self.simulate_physics();
+    }
+
+    fn handle_server_data(&mut self, data: Vec<u8>) {
+        #[derive(Deserialize)]
+        struct PlayerVelocity {
+            velocity: Vec3,
+        }
+
+        let Ok(velocity) = bincode::deserialize::<PlayerVelocity>(&data) else {
+            fmc::log("'Movement' plugin received malformed data from the server");
+            return;
+        };
+
+        self.velocity += velocity.velocity;
     }
 
     fn set_update_frequency(&mut self) -> Option<f32> {

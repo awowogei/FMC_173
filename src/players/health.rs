@@ -19,7 +19,7 @@ use super::{Equipment, GameMode, Inventory, RespawnEvent};
 pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<DamageEvent>()
+        app.add_event::<PlayerDamageEvent>()
             .add_event::<HealEvent>()
             .add_systems(
                 Update,
@@ -50,6 +50,7 @@ impl HealthBundle {
 
 #[derive(Component, Serialize, Deserialize, Clone)]
 pub struct Health {
+    invincibility: Option<Timer>,
     hearts: u32,
     max: u32,
 }
@@ -57,6 +58,7 @@ pub struct Health {
 impl Default for Health {
     fn default() -> Self {
         Self {
+            invincibility: None,
             hearts: 20,
             max: 20,
         }
@@ -105,12 +107,16 @@ impl Health {
     pub fn is_dead(&self) -> bool {
         self.hearts == 0
     }
+    pub fn is_invincible(&self) -> bool {
+        self.invincibility.is_some()
+    }
 }
 
 #[derive(Event)]
-pub struct DamageEvent {
+pub struct PlayerDamageEvent {
     pub player_entity: Entity,
     pub damage: u32,
+    pub knock_back: Option<DVec3>,
 }
 
 #[derive(Event)]
@@ -140,7 +146,7 @@ impl Default for FallDamage {
 fn fall_damage(
     mut fall_damage_query: Query<(&mut FallDamage, &GameMode), With<Player>>,
     mut position_events: EventReader<NetworkMessage<messages::PlayerPosition>>,
-    mut damage_events: EventWriter<DamageEvent>,
+    mut damage_events: EventWriter<PlayerDamageEvent>,
 ) {
     for position_update in position_events.read() {
         let (mut fall_damage, game_mode) = fall_damage_query
@@ -159,9 +165,10 @@ fn fall_damage(
             / now.duration_since(fall_damage.last_update).as_secs_f64();
         if velocity > -0.1 {
             if fall_damage.hearts.saturating_sub(3) != 0 {
-                damage_events.send(DamageEvent {
+                damage_events.send(PlayerDamageEvent {
                     player_entity: position_update.player_entity,
                     damage: fall_damage.hearts - 3,
+                    knock_back: None,
                 });
             }
             fall_damage.hearts = 0;
@@ -182,6 +189,7 @@ fn fall_damage(
 fn change_health(
     mut commands: Commands,
     net: Res<Server>,
+    time: Res<Time>,
     mut health_query: Query<(
         Entity,
         &Transform,
@@ -189,18 +197,60 @@ fn change_health(
         Mut<Equipment>,
         Mut<Health>,
     )>,
-    mut damage_events: EventReader<DamageEvent>,
+    mut damage_events: EventReader<PlayerDamageEvent>,
     mut heal_events: EventReader<HealEvent>,
     mut rng: Local<Rng>,
 ) {
-    for (player_entity, _, _, _, health) in health_query.iter() {
+    for (player_entity, _, _, _, mut health) in health_query.iter_mut() {
+        if let Some(invincibility_timer) = &mut health.invincibility {
+            invincibility_timer.tick(time.delta());
+            if invincibility_timer.just_finished() {
+                health.invincibility = None;
+            }
+        }
+
         if health.is_added() {
             net.send_one(player_entity, health.build_interface());
+            if health.is_dead() {
+                net.send_one(
+                    player_entity,
+                    messages::InterfaceVisibilityUpdate {
+                        interface_path: "death".to_owned(),
+                        visible: true,
+                    },
+                );
+            }
         }
     }
+
     for damage_event in damage_events.read() {
         let (_, transform, mut inventory, mut equipment, mut health) =
             health_query.get_mut(damage_event.player_entity).unwrap();
+
+        if health.is_dead() || health.is_invincible() {
+            continue;
+        }
+
+        health.invincibility = Some(Timer::from_seconds(0.5, TimerMode::Once));
+
+        if let Some(knock_back) = damage_event.knock_back {
+            #[derive(Serialize)]
+            struct PlayerVelocity {
+                velocity: Vec3,
+            }
+
+            net.send_one(
+                damage_event.player_entity,
+                messages::PluginData {
+                    plugin: "movement".to_string(),
+                    data: bincode::serialize(&PlayerVelocity {
+                        velocity: knock_back.as_vec3(),
+                    })
+                    .unwrap(),
+                },
+            );
+        }
+
         let interface_update = health.take_damage(damage_event.damage);
 
         net.send_one(damage_event.player_entity, interface_update);
@@ -211,7 +261,7 @@ fn change_health(
             sound: "player_damage.ogg".to_owned(),
         });
 
-        if health.hearts == 0 {
+        if health.is_dead() {
             // Reborrow to enable split borrowing
             let equipment = equipment.into_inner();
 
@@ -241,6 +291,7 @@ fn change_health(
                     },
                 ));
             }
+
             net.send_one(
                 damage_event.player_entity,
                 messages::InterfaceVisibilityUpdate {

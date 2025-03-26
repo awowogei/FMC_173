@@ -10,4 +10,6 @@ LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 [hurt2.wav] by thecheeseman
 LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+[pain - breathing](https://freesound.org/people/Valerie-Vivegnis/sounds/768191/) by Valerie-Vivegnis
+LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
