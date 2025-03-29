@@ -1,0 +1,10 @@
+{
+    "name": "Wooden Axe",
+    "image": "wooden_axe.png",
+    "equip_model": "wooden_axe",
+    "stack_size": 1,
+    "tool": {
+        "name": "axe",
+        "efficiency": 4
+    }
+}

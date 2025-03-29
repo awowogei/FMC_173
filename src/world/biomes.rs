@@ -46,7 +46,11 @@ impl Biomes {
             sub_surface_liquid: "subsurface_water".to_owned(),
             air: "air".to_owned(),
             sand: "sand".to_owned(),
-            blueprints: vec!["distribute_trees".to_owned(), "coal_ore".to_owned()],
+            blueprints: vec![
+                "distribute_trees".to_owned(),
+                "coal_ore".to_owned(),
+                "iron_ore".to_owned(),
+            ],
         };
 
         fn validate_block(biome_name: &str, block_name: &str, blocks: &Blocks) {

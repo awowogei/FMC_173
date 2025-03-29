@@ -26,18 +26,20 @@ fn register_hoes(
     items: Res<Items>,
     mut usable_items: ResMut<ItemRegistry>,
 ) {
-    usable_items.insert(
-        items.get_id("hoe").unwrap(),
-        commands
-            .spawn((
-                ItemUses::default(),
-                HoeConfig {
-                    dirt: blocks.get_id("dirt"),
-                    grass: blocks.get_id("grass"),
-                },
-            ))
-            .id(),
-    );
+    for hoe in ["wooden_hoe", "stone_hoe"] {
+        usable_items.insert(
+            items.get_id(hoe).unwrap(),
+            commands
+                .spawn((
+                    ItemUses::default(),
+                    HoeConfig {
+                        dirt: blocks.get_id("dirt"),
+                        grass: blocks.get_id("grass"),
+                    },
+                ))
+                .id(),
+        );
+    }
 }
 
 #[derive(Component)]

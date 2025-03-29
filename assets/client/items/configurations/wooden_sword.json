@@ -1,0 +1,6 @@
+{
+    "name": "Wooden Sword",
+    "image": "wooden_sword.png",
+    "equip_model": "wooden_sword",
+    "stack_size": 1
+}

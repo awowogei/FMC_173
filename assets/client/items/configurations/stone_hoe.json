@@ -1,0 +1,6 @@
+{
+    "name": "Stone Hoe",
+    "image": "stone_hoe.png",
+    "equip_model": "stone_hoe",
+    "stack_size": 1
+}

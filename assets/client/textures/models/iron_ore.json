@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "iron_ore.png",
+        "bottom": "iron_ore.png",
+        "left": "iron_ore.png",
+        "right": "iron_ore.png",
+        "front": "iron_ore.png",
+        "back": "iron_ore.png"
+    }
+}

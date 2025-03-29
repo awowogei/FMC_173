@@ -1,0 +1,6 @@
+{
+    "name": "Iron Sword",
+    "image": "iron_sword.png",
+    "equip_model": "iron_sword",
+    "stack_size": 1
+}
