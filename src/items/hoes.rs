@@ -26,7 +26,7 @@ fn register_hoes(
     items: Res<Items>,
     mut usable_items: ResMut<ItemRegistry>,
 ) {
-    for hoe in ["wooden_hoe", "stone_hoe"] {
+    for hoe in ["wooden_hoe", "stone_hoe", "iron_hoe"] {
         usable_items.insert(
             items.get_id(hoe).unwrap(),
             commands
