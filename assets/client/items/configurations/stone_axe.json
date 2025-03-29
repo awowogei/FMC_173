@@ -1,0 +1,10 @@
+{
+    "name": "Stone Axe",
+    "image": "stone_axe.png",
+    "equip_model": "stone_axe",
+    "stack_size": 1,
+    "tool": {
+        "name": "axe",
+        "efficiency": 4
+    }
+}

@@ -2,11 +2,11 @@
     "type": "distribution",
     "blueprint": {
         "type": "orevein",
-        "ore_block": "coal_ore",
-        "count": 6,
+        "ore_block": "iron_ore",
+        "count": 4,
         "can_replace": [
             "stone"
         ]
     },
-    "count": 8
+    "count": 5
 }

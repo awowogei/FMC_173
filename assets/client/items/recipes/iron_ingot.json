@@ -1,0 +1,11 @@
+[
+    {
+        "collection_name": "smelting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["iron_ore", 1]]
+        ],
+        "output_item": "iron_ingot",
+        "output_amount": 1
+    }
+]

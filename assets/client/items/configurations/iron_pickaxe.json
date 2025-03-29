@@ -1,0 +1,10 @@
+{
+    "name": "Iron Pickaxe",
+    "image": "iron_pickaxe.png",
+    "equip_model": "iron_pickaxe",
+    "stack_size": 1,
+    "tool": {
+        "name": "pickaxe",
+        "efficiency": 12
+    }
+}

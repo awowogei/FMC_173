@@ -1,0 +1,10 @@
+{
+    "name": "Iron Shovel",
+    "image": "iron_shovel.png",
+    "equip_model": "iron_shovel",
+    "stack_size": 1,
+    "tool": {
+        "name": "shovel",
+        "efficiency": 4
+    }
+}

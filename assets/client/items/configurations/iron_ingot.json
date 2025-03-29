@@ -1,0 +1,6 @@
+{
+    "name": "Iron Ingot",
+    "image": "iron_ingot.png",
+    "equip_model": "iron_ingot",
+    "stack_size": 64
+}
