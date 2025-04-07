@@ -1,0 +1,35 @@
+{
+    "parent": "default_block.json",
+    "type": "model",
+    "name": "oak door",
+    "model": "oak_door",
+    "hardness": 1,
+    "drop": {
+        "requires_tool": false,
+        "drop": "oak_door"
+    },
+    "placement": {
+        "rotatable": true
+    },
+    "particle_texture": "blocks/oak_planks.png",
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    }
+}

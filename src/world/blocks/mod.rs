@@ -2,6 +2,7 @@ use fmc::prelude::*;
 
 mod chest;
 mod crafting_table;
+mod door;
 mod furnace;
 mod torch;
 mod water;
@@ -15,6 +16,7 @@ impl Plugin for BlocksPlugin {
             .add_plugins(furnace::FurnacePlugin)
             .add_plugins(torch::TorchPlugin)
             .add_plugins(water::WaterPlugin)
+            .add_plugins(door::DoorPlugin)
             .add_plugins(wheat::WheatPlugin);
     }
 }

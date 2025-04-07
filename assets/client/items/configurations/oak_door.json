@@ -1,0 +1,7 @@
+{
+    "name": "Oak Door",
+    "image": "oak_door.png",
+    "block": "oak door",
+    "equip_model": "oak_door",
+    "stack_size": 64
+}
