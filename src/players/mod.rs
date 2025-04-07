@@ -31,6 +31,7 @@ use self::health::HealthBundle;
 mod hand;
 mod health;
 mod inventory_interface;
+mod movement;
 
 pub use hand::{HandHits, HandInteractions};
 pub use health::{HealEvent, Health, PlayerDamageEvent};
@@ -42,6 +43,7 @@ impl Plugin for PlayerPlugin {
             .add_plugins(inventory_interface::InventoryInterfacePlugin)
             .add_plugins(health::HealthPlugin)
             .add_plugins(hand::HandPlugin)
+            .add_plugins(movement::MovementPlugin)
             .add_systems(
                 Update,
                 (

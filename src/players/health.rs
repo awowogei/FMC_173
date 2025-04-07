@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::items::DroppedItem;
 
-use super::{Equipment, GameMode, Inventory, RespawnEvent};
+use super::{movement::MovementPluginPacket, Equipment, GameMode, Inventory, RespawnEvent};
 
 pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
@@ -234,19 +234,12 @@ fn change_health(
         health.invincibility = Some(Timer::from_seconds(0.5, TimerMode::Once));
 
         if let Some(knock_back) = damage_event.knock_back {
-            #[derive(Serialize)]
-            struct PlayerVelocity {
-                velocity: Vec3,
-            }
-
             net.send_one(
                 damage_event.player_entity,
                 messages::PluginData {
                     plugin: "movement".to_string(),
-                    data: bincode::serialize(&PlayerVelocity {
-                        velocity: knock_back.as_vec3(),
-                    })
-                    .unwrap(),
+                    data: bincode::serialize(&MovementPluginPacket::Velocity(knock_back.as_vec3()))
+                        .unwrap(),
                 },
             );
         }
