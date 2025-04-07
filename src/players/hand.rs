@@ -4,7 +4,7 @@ use fmc::{
     bevy::math::DVec3,
     blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, Blocks},
     items::{ItemStack, Items},
-    models::{AnimationPlayer, Model, ModelMap, ModelVisibility, Models},
+    models::{AnimationPlayer, Model, ModelConfig, ModelMap, ModelVisibility, Models},
     networking::{NetworkMessage, Server},
     physics::{shapes::Aabb, Collider},
     players::{Camera, Player, Target, Targets},
@@ -106,7 +106,7 @@ fn handle_left_clicks(
                     block_id,
                     block_face,
                     distance,
-                    ..
+                    entity,
                 } => {
                     let block_config = Blocks::get().get_config(block_id);
 
@@ -114,7 +114,13 @@ fn handle_left_clicks(
                         let hit_position = camera_position + camera.forward() * *distance;
                         mining_events.insert(
                             *block_position,
-                            (click.player_entity, *block_id, *block_face, hit_position),
+                            (
+                                click.player_entity,
+                                *block_id,
+                                *block_face,
+                                hit_position,
+                                *entity,
+                            ),
                         );
 
                         break;
@@ -135,7 +141,7 @@ fn handle_left_clicks(
 }
 
 #[derive(Resource, Deref, DerefMut, Default, Debug)]
-struct MiningEvents(HashMap<BlockPosition, (Entity, BlockId, BlockFace, DVec3)>);
+struct MiningEvents(HashMap<BlockPosition, (Entity, BlockId, BlockFace, DVec3, Option<Entity>)>);
 
 // Keeps the state of how far along a block is to breaking
 #[derive(Debug)]
@@ -154,9 +160,11 @@ fn break_blocks(
     time: Res<Time>,
     net: Res<Server>,
     items: Res<Items>,
+    models: Res<Models>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     inventory_query: Query<&Inventory, With<Player>>,
-    mut model_query: Query<(&mut Model, &mut ModelVisibility), With<BreakingBlockMarker>>,
+    block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
+    mut breaking_model_query: Query<(&mut Model, &mut ModelVisibility), With<BreakingBlockMarker>>,
     mut block_update_writer: EventWriter<BlockUpdate>,
     mut mining_events: ResMut<MiningEvents>,
     mut being_broken: Local<HashMap<BlockPosition, BreakingBlock>>,
@@ -166,7 +174,7 @@ fn break_blocks(
 
     let blocks = Blocks::get();
 
-    for (block_position, (player_entity, block_id, block_face, hit_position)) in
+    for (block_position, (player_entity, block_id, block_face, hit_position, maybe_block_entity)) in
         mining_events.drain()
     {
         let block_config = blocks.get_config(&block_id);
@@ -219,8 +227,9 @@ fn break_blocks(
             // If we tick before checking if it is finished it will set itself to unfinished again.
             breaking_block.particle_timer.tick(time.delta());
 
-            let (mut model, mut visibility) =
-                model_query.get_mut(breaking_block.model_entity).unwrap();
+            let (mut model, mut visibility) = breaking_model_query
+                .get_mut(breaking_block.model_entity)
+                .unwrap();
 
             let prev_progress = breaking_block.progress;
 
@@ -233,35 +242,43 @@ fn break_blocks(
                 (now - breaking_block.prev_hit).as_secs_f32() / hardness * efficiency;
             breaking_block.prev_hit = now;
 
-            let Model::Custom {
-                ref mut material_parallax_texture,
-                ..
-            } = *model
-            else {
-                unreachable!()
-            };
-
             let progress = breaking_block.progress;
 
             // Ordering from high to low lets it skip stages.
-            if prev_progress < 0.9 && progress > 0.9 {
-                *material_parallax_texture = Some("blocks/breaking_9.png".to_owned());
+            let next_texture = if prev_progress < 0.9 && progress > 0.9 {
+                Some("blocks/breaking_9.png".to_owned())
             } else if prev_progress < 0.8 && progress > 0.8 {
-                *material_parallax_texture = Some("blocks/breaking_8.png".to_owned());
+                Some("blocks/breaking_8.png".to_owned())
             } else if prev_progress < 0.7 && progress > 0.7 {
-                *material_parallax_texture = Some("blocks/breaking_7.png".to_owned());
+                Some("blocks/breaking_7.png".to_owned())
             } else if prev_progress < 0.6 && progress > 0.6 {
-                *material_parallax_texture = Some("blocks/breaking_6.png".to_owned());
+                Some("blocks/breaking_6.png".to_owned())
             } else if prev_progress < 0.5 && progress > 0.5 {
-                *material_parallax_texture = Some("blocks/breaking_5.png".to_owned());
+                Some("blocks/breaking_5.png".to_owned())
             } else if prev_progress < 0.4 && progress > 0.4 {
-                *material_parallax_texture = Some("blocks/breaking_4.png".to_owned());
+                Some("blocks/breaking_4.png".to_owned())
             } else if prev_progress < 0.3 && progress > 0.3 {
-                *material_parallax_texture = Some("blocks/breaking_3.png".to_owned());
+                Some("blocks/breaking_3.png".to_owned())
             } else if prev_progress < 0.2 && progress > 0.2 {
-                *material_parallax_texture = Some("blocks/breaking_2.png".to_owned());
+                Some("blocks/breaking_2.png".to_owned())
             } else if prev_progress < 0.1 && progress > 0.1 {
                 *visibility = ModelVisibility::Visible;
+                None
+            } else {
+                None
+            };
+
+            if next_texture.is_some() {
+                // This triggers change detection, so we do it after we determine if the texture
+                // should change.
+                let Model::Custom {
+                    ref mut material_parallax_texture,
+                    ..
+                } = *model
+                else {
+                    unreachable!()
+                };
+                *material_parallax_texture = next_texture;
             }
 
             if progress >= 1.0 {
@@ -322,17 +339,37 @@ fn break_blocks(
                 Transform::from_translation(block_position.as_dvec3() + DVec3::splat(0.5)),
             ));
         } else {
-            let model_entity = commands
-                .spawn((
-                    build_breaking_model(),
-                    // The model shouldn't show until some progress has been made
-                    ModelVisibility::Hidden,
-                    Transform::from_translation(block_position.as_dvec3() + DVec3::splat(0.5))
-                        // Scale a little so it envelops the block
-                        .with_scale(DVec3::splat(1.001)),
-                    BreakingBlockMarker,
-                ))
-                .id();
+            let model_config = block_config.model.map(|id| models.get_by_id(id));
+            let (model, offset) = build_breaking_model(model_config);
+
+            let model_entity = if maybe_block_entity
+                .is_some_and(|e| block_model_query.get(e).is_ok())
+            {
+                let child = commands
+                    .spawn((
+                        model,
+                        // The model shouldn't show until some progress has been made
+                        ModelVisibility::Hidden,
+                        BreakingBlockMarker,
+                    ))
+                    .id();
+                commands
+                    .entity(maybe_block_entity.unwrap())
+                    .add_child(child);
+                child
+            } else {
+                commands
+                    .spawn((
+                        model,
+                        Transform::from_translation(block_position.as_dvec3() + offset.as_dvec3())
+                            // Scale a little so it envelops the block
+                            .with_scale(DVec3::splat(1.001)),
+                        // The model shouldn't show until some progress has been made
+                        ModelVisibility::Hidden,
+                        BreakingBlockMarker,
+                    ))
+                    .id()
+            };
 
             let particle_timer = Timer::new(
                 std::time::Duration::from_secs_f32(0.2),
@@ -359,7 +396,11 @@ fn break_blocks(
         let remove_broken = breaking_block.progress >= 1.0;
 
         if remove_timout || remove_broken {
-            commands.entity(breaking_block.model_entity).despawn();
+            // If the breaking model is the child of a block model, it will be despawned when the
+            // block changes, so it will no longer be available.
+            if let Some(mut entity) = commands.get_entity(breaking_block.model_entity) {
+                entity.try_despawn();
+            }
             return false;
         } else {
             return true;
@@ -431,98 +472,192 @@ fn break_particles(
     })
 }
 
-// TODO: This needs to be built from the model of what it is breaking. Means we have to load and
-// store the quad info for each block including through gltfs
-fn build_breaking_model() -> Model {
-    let mesh_vertices = vec![
-        // Top
-        [-0.5, 0.5, -0.5],
-        [-0.5, 0.5, 0.5],
-        [0.5, 0.5, -0.5],
-        [0.5, 0.5, 0.5],
-        // Back
-        [0.5, 0.5, -0.5],
-        [0.5, -0.5, -0.5],
-        [-0.5, 0.5, -0.5],
-        [-0.5, -0.5, -0.5],
-        // Left
-        [-0.5, 0.5, -0.5],
-        [-0.5, -0.5, -0.5],
-        [-0.5, 0.5, 0.5],
-        [-0.5, -0.5, 0.5],
-        // Right
-        [0.5, 0.5, 0.5],
-        [0.5, -0.5, 0.5],
-        [0.5, 0.5, -0.5],
-        [0.5, -0.5, -0.5],
-        // Front
-        [-0.5, 0.5, 0.5],
-        [-0.5, -0.5, 0.5],
-        [0.5, 0.5, 0.5],
-        [0.5, -0.5, 0.5],
-        // Bottom
-        [-0.5, -0.5, 0.5],
-        [-0.5, -0.5, -0.5],
-        [0.5, -0.5, 0.5],
-        [0.5, -0.5, -0.5],
-    ];
+fn build_breaking_model(model: Option<&ModelConfig>) -> (Model, Vec3) {
+    if let Some(model) = model {
+        let mut mesh_vertices = Vec::new();
+        let mut mesh_uvs = Vec::new();
+        let mut mesh_normals = Vec::new();
+        let mut mesh_indices = Vec::new();
+        let mut i = 0;
+        for mesh in model.meshes.iter() {
+            mesh_vertices.extend(
+                mesh.vertices
+                    .iter()
+                    .cloned()
+                    .zip(&mesh.normals)
+                    .map(|(v, n)| (Vec3::from_array(v) + Vec3::from_array(*n) * 0.001).to_array()),
+            );
+            mesh_normals.extend(&mesh.normals);
+            mesh_indices.extend(mesh.indices.iter().map(|index| index + i));
+            i += mesh.indices.len() as u32;
 
-    let mesh_normals = vec![
-        // Top
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0],
-        // Back
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        [0.0, 0.0, -1.0],
-        // Left
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        [-1.0, 0.0, 0.0],
-        // Right
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        // Front
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0],
-        // Bottom
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-    ];
+            for (k, uv_quad) in mesh.uvs.chunks_exact(4).enumerate() {
+                let mut min = [f32::MAX, f32::MAX];
+                let mut max = [f32::MIN, f32::MIN];
+                for uv in uv_quad {
+                    min[0] = uv[0].min(min[0]);
+                    max[0] = uv[0].max(max[0]);
 
-    const UVS: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]];
-    let mut mesh_uvs = Vec::new();
-    for _ in 0..6 {
-        mesh_uvs.extend(UVS);
-    }
+                    min[1] = uv[1].min(min[1]);
+                    max[1] = uv[1].max(max[1]);
+                }
 
-    const INDICES: [u32; 6] = [0, 1, 2, 2, 1, 3];
-    let mut mesh_indices = Vec::new();
-    for i in 0..6 {
-        mesh_indices.extend(INDICES.iter().map(|x| x + 4 * i));
-    }
+                let mut corners = [0; 4];
+                let bottom_left = [min[0], max[1]];
+                let top_right = [max[0], min[1]];
+                for (j, uv) in uv_quad.iter().enumerate() {
+                    corners[j] = if *uv == min {
+                        0
+                    } else if *uv == bottom_left {
+                        1
+                    } else if *uv == max {
+                        2
+                    } else if *uv == top_right {
+                        3
+                    } else {
+                        unreachable!()
+                    };
+                }
 
-    Model::Custom {
-        mesh_indices,
-        mesh_vertices,
-        mesh_normals,
-        mesh_uvs: Some(mesh_uvs),
-        material_color_texture: None,
-        material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
-        material_alpha_mode: 2,
-        material_alpha_cutoff: 0.0,
-        material_double_sided: false,
-        collider: None,
+                let vertices = &mesh.vertices[k * 4..k * 4 + 4];
+
+                let top_left = corners.iter().position(|&c| c == 0).unwrap();
+                let top_right = corners.iter().position(|&c| c == 3).unwrap();
+                let bottom_left = corners.iter().position(|&c| c == 1).unwrap();
+                let width = Vec3::from_array(vertices[top_left])
+                    .distance(Vec3::from_array(vertices[top_right]));
+                let height = Vec3::from_array(vertices[top_left])
+                    .distance(Vec3::from_array(vertices[bottom_left]));
+                let width_offset = (1.0 - width.min(1.0)) / 2.0;
+                let height_offset = (1.0 - height.min(1.0)) / 2.0;
+
+                let mut uvs = [[0.0; 2]; 4];
+                for (index, corner) in corners.iter().enumerate() {
+                    uvs[index] = match corner {
+                        0 => [width_offset, height_offset],
+                        1 => [width_offset, 1.0 - height_offset],
+                        2 => [1.0 - width_offset, 1.0 - height_offset],
+                        3 => [1.0 - width_offset, height_offset],
+                        _ => unreachable!(),
+                    };
+                }
+
+                mesh_uvs.extend(uvs);
+            }
+            // TODO: This should not break. It messes up consecutive meshes, vertices all over the
+            // place.
+            break;
+        }
+
+        (
+            Model::Custom {
+                mesh_indices,
+                mesh_vertices,
+                mesh_normals,
+                mesh_uvs: Some(mesh_uvs),
+                material_color_texture: None,
+                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
+                material_alpha_mode: 2,
+                material_alpha_cutoff: 0.0,
+                material_double_sided: false,
+                collider: None,
+            },
+            Vec3::ZERO,
+        )
+    } else {
+        let mesh_vertices = vec![
+            // Top
+            [-0.5, 0.5, -0.5],
+            [-0.5, 0.5, 0.5],
+            [0.5, 0.5, -0.5],
+            [0.5, 0.5, 0.5],
+            // Back
+            [0.5, 0.5, -0.5],
+            [0.5, -0.5, -0.5],
+            [-0.5, 0.5, -0.5],
+            [-0.5, -0.5, -0.5],
+            // Left
+            [-0.5, 0.5, -0.5],
+            [-0.5, -0.5, -0.5],
+            [-0.5, 0.5, 0.5],
+            [-0.5, -0.5, 0.5],
+            // Right
+            [0.5, 0.5, 0.5],
+            [0.5, -0.5, 0.5],
+            [0.5, 0.5, -0.5],
+            [0.5, -0.5, -0.5],
+            // Front
+            [-0.5, 0.5, 0.5],
+            [-0.5, -0.5, 0.5],
+            [0.5, 0.5, 0.5],
+            [0.5, -0.5, 0.5],
+            // Bottom
+            [-0.5, -0.5, 0.5],
+            [-0.5, -0.5, -0.5],
+            [0.5, -0.5, 0.5],
+            [0.5, -0.5, -0.5],
+        ];
+
+        let mesh_normals = vec![
+            // Top
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            // Back
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, -1.0],
+            // Left
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            // Right
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            // Front
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            // Bottom
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0],
+        ];
+
+        const UVS: [[f32; 2]; 4] = [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]];
+        let mut mesh_uvs = Vec::new();
+        for _ in 0..6 {
+            mesh_uvs.extend(UVS);
+        }
+
+        const INDICES: [u32; 6] = [0, 1, 2, 2, 1, 3];
+        let mut mesh_indices = Vec::new();
+        for i in 0..6 {
+            mesh_indices.extend(INDICES.iter().map(|x| x + 4 * i));
+        }
+
+        (
+            Model::Custom {
+                mesh_indices,
+                mesh_vertices,
+                mesh_normals,
+                mesh_uvs: Some(mesh_uvs),
+                material_color_texture: None,
+                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
+                material_alpha_mode: 2,
+                material_alpha_cutoff: 0.0,
+                material_double_sided: false,
+                collider: None,
+            },
+            Vec3::splat(0.5),
+        )
     }
 }
 
