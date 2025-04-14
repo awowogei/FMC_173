@@ -244,6 +244,7 @@ fn add_players(
         let mut animation_player = AnimationPlayer::default();
         animation_player.set_move_animation(Some(model.animations["walk"]));
         animation_player.set_idle_animation(Some(model.animations["idle"]));
+        animation_player.set_transition_time(0.15);
 
         let model_entity = commands
             .spawn(Model::Asset(model.id))
