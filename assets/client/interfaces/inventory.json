@@ -16,19 +16,19 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 9
+                        "Px": 10
                     },
                     "top": {
-                        "Px": 106
+                        "Px": 118
                     },
                     "width": {
-                        "Px": 160
+                        "Px": 168
                     },
                     "height": {
                         "Px": 16
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     }
                 },
                 "content": {
@@ -43,22 +43,22 @@
                     "position_type": "Absolute",
                     "flex_wrap": "Wrap",
                     "left": {
-                        "Px": 9
+                        "Px": 10
                     },
                     "top": {
-                        "Px": 48
+                        "Px": 52
                     },
                     "width": {
-                        "Px": 160
+                        "Px": 168
                     },
                     "height": {
                         "Px": 16
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     },
                     "row_gap": {
-                        "Px": 2
+                        "Px": 4
                     }
                 },
                 "content": {
@@ -72,10 +72,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 9
+                        "Px": 10
                     },
                     "top": {
-                        "Px": 17
+                        "Px": 18
                     },
                     "width": {
                         "Px": 16
@@ -95,10 +95,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 27
+                        "Px": 29
                     },
                     "top": {
-                        "Px": 17
+                        "Px": 18
                     },
                     "width": {
                         "Px": 16
@@ -118,10 +118,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 45
+                        "Px": 48
                     },
                     "top": {
-                        "Px": 17
+                        "Px": 18
                     },
                     "width": {
                         "Px": 16
@@ -141,10 +141,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 63
+                        "Px": 67
                     },
                     "top": {
-                        "Px": 17
+                        "Px": 18
                     },
                     "width": {
                         "Px": 16
@@ -165,22 +165,22 @@
                     "position_type": "Absolute",
                     "flex_wrap": "Wrap",
                     "left": {
-                        "Px": 99
+                        "Px": 105
                     },
                     "top": {
                         "Px": 8
                     },
                     "width": {
-                        "Px": 34
+                        "Px": 35
                     },
                     "height": {
-                        "Px": 34
+                        "Px": 36
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     },
                     "row_gap": {
-                        "Px": 2
+                        "Px": 4
                     }
                 },
                 "content": {
@@ -194,10 +194,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 153
+                        "Px": 162
                     },
                     "top": {
-                        "Px": 18
+                        "Px": 19
                     },
                     "width": {
                         "Px": 16
@@ -213,5 +213,5 @@
                 }
             }
         ]
-        }
+    }
 }
