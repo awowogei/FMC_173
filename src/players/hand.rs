@@ -33,7 +33,7 @@ impl Plugin for HandPlugin {
     }
 }
 
-/// Tracks which players have right clicked the entity
+/// Component that tracks when a player right clicks the entity
 #[derive(Component, Default)]
 pub struct HandInteractions {
     player_entities: Vec<Entity>,
@@ -49,7 +49,7 @@ impl HandInteractions {
     }
 }
 
-/// Tracks which players have left clicked the entity
+/// Component that tracks when a player left clicks the entity
 #[derive(Component, Default)]
 pub struct HandHits {
     player_entities: HashSet<Entity>,

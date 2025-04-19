@@ -98,25 +98,27 @@ impl Inventory {
 }
 
 // TODO: Move this into Inventory, no clue why I separated them
+//
+/// The equipment the
 #[derive(Component, Default, Serialize, Deserialize, Clone)]
 pub struct Equipment {
-    helmet: ItemStack,
-    chestplate: ItemStack,
-    leggings: ItemStack,
-    boots: ItemStack,
+    pub helmet: ItemStack,
+    pub chestplate: ItemStack,
+    pub leggings: ItemStack,
+    pub boots: ItemStack,
 }
 
-/// Default bundle used for new players.
+/// Components a player consists of
 #[derive(Bundle)]
 pub struct PlayerBundle {
-    transform: Transform,
-    camera: Camera,
-    aabb: Collider,
-    inventory: Inventory,
-    equipment: Equipment,
-    crafting_table: CraftingGrid,
-    health_bundle: HealthBundle,
-    gamemode: GameMode,
+    pub transform: Transform,
+    pub camera: Camera,
+    pub aabb: Collider,
+    pub inventory: Inventory,
+    pub equipment: Equipment,
+    pub crafting_table: CraftingGrid,
+    pub health_bundle: HealthBundle,
+    pub gamemode: GameMode,
 }
 
 impl Default for PlayerBundle {

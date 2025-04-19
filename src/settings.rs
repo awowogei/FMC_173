@@ -5,6 +5,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
+/// Loads the settings from "./server_settings.txt"
 pub struct SettingsPlugin;
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
@@ -12,6 +13,7 @@ impl Plugin for SettingsPlugin {
     }
 }
 
+/// Global settings
 #[derive(Resource)]
 pub struct Settings {
     /// Name of the world that should be loaded
