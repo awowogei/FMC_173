@@ -43,7 +43,14 @@ fn handle_chat_messages(
                     "midnight" => clock.set_midnight(),
                     "sunrise" => clock.set_sunrise(),
                     "sunset" => clock.set_sunset(),
-                    _ => (),
+                    custom_time => {
+                        if let Some(time) = custom_time
+                            .strip_prefix("set ")
+                            .and_then(|time| str::parse::<f32>(time).ok())
+                        {
+                            clock.set_time(time);
+                        }
+                    }
                 }
             } else if let Some(mode) = chat_message.text.strip_prefix("/gamemode ") {
                 match mode {

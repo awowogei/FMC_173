@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use fmc::{networking::Server, prelude::*, protocol::messages};
 
+/// Handles the day/night cycle
 pub struct SkyPlugin;
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
@@ -18,12 +19,21 @@ const SUNSET: f32 = DAY_LENGTH / 2.0;
 const MIDNIGHT: f32 = DAY_LENGTH * 0.75;
 const NOON: f32 = DAY_LENGTH * 0.25;
 
+/// The current time of day, 0s = dawn, 600s = dusk
 #[derive(Default, DerefMut, Deref, Resource)]
 pub struct Clock {
     time: Duration,
 }
 
 impl Clock {
+    pub fn set_time(&mut self, time: f32) {
+        self.time = Duration::from_secs_f32(time % DAY_LENGTH);
+    }
+
+    pub fn get_time(&self) -> f32 {
+        self.time.as_secs_f32() % DAY_LENGTH
+    }
+
     pub fn set_sunrise(&mut self) {
         self.time = Duration::from_secs_f32(SUNRISE);
     }
