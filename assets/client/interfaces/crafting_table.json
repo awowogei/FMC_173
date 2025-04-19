@@ -16,19 +16,19 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 9
+                        "Px": 10
                     },
                     "top": {
-                        "Px": 142
+                        "Px": 150
                     },
                     "width": {
-                        "Px": 160
+                        "Px": 168
                     },
                     "height": {
                         "Px": 16
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     }
                 },
                 "content": {
@@ -43,22 +43,22 @@
                     "position_type": "Absolute",
                     "flex_wrap": "Wrap",
                     "left": {
-                        "Px": 9
+                        "Px": 10
                     },
                     "top": {
                         "Px": 84
                     },
                     "width": {
-                        "Px": 160
+                        "Px": 168
                     },
                     "height": {
                         "Px": 16
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     },
                     "row_gap": {
-                        "Px": 2
+                        "Px": 4
                     }
                 },
                 "content": {
@@ -73,22 +73,22 @@
                     "position_type": "Absolute",
                     "flex_wrap": "Wrap",
                     "left": {
-                        "Px": 31
+                        "Px": 32
                     },
                     "top": {
-                        "Px": 17
+                        "Px": 14
                     },
                     "width": {
-                        "Px": 52
+                        "Px": 54
                     },
                     "height": {
-                        "Px": 52
+                        "Px": 54
                     },
                     "column_gap": {
-                        "Px": 4
+                        "Px": 5
                     },
                     "row_gap": {
-                        "Px": 2
+                        "Px": 4
                     }
                 },
                 "content": {
@@ -102,10 +102,10 @@
                 "style": {
                     "position_type": "Absolute",
                     "left": {
-                        "Px": 126
+                        "Px": 136
                     },
                     "top": {
-                        "Px": 35
+                        "Px": 34
                     },
                     "width": {
                         "Px": 16

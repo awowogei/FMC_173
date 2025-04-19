@@ -1,7 +1,7 @@
 use fmc::{
     blocks::{BlockId, Blocks},
     items::Items,
-    players::{Camera, Player, Target, Targets},
+    players::{Player, Target, Targets},
     prelude::*,
     world::{BlockUpdate, WorldMap},
 };

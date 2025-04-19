@@ -22,7 +22,7 @@ impl Plugin for DroppedItemsPlugin {
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct DropItems;
 
-// An item that is dropped on the ground.
+/// An item that is dropped on the ground.
 #[derive(Component, Deref, DerefMut)]
 #[require(Transform)]
 pub struct DroppedItem(ItemStack);

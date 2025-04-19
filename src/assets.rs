@@ -1,5 +1,6 @@
 use fmc::prelude::*;
 
+/// Extracts the bundled assets to the "assets" directory
 pub struct ExtractBundledAssetsPlugin;
 impl Plugin for ExtractBundledAssetsPlugin {
     fn build(&self, _app: &mut App) {

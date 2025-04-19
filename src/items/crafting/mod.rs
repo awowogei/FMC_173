@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 mod shaped;
 
-pub(super) struct CraftingPlugin;
+pub struct CraftingPlugin;
 impl Plugin for CraftingPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_recipes);
@@ -117,10 +117,14 @@ fn load_recipes(mut commands: Commands, items: Res<Items>) {
     })
 }
 
+/// A square crafting grid.
+///
+/// Used in combination with a [Recipe] to craft items
 #[derive(Component, Deref, DerefMut, Serialize, Deserialize)]
 pub struct CraftingGrid(Vec<ItemStack>);
 
 impl CraftingGrid {
+    /// Create a new square crafting grid with width/lenght == size
     pub fn with_size(size: usize) -> Self {
         let mut grid = Vec::with_capacity(size);
         grid.resize_with(size, ItemStack::default);
@@ -262,7 +266,10 @@ impl RecipeCollection {
     }
 }
 
-/// Holds all recipes in the game.
+/// Holds all crafting recipes in the game.
+///
+/// The recipes are sorted into collections based on where they are used. For example "smelting"
+/// for the furnace, or "crafting" for the crafting table.
 #[derive(Resource)]
 pub struct Recipes {
     collections: HashMap<String, RecipeCollection>,
