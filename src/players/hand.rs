@@ -161,6 +161,7 @@ fn break_blocks(
     net: Res<Server>,
     items: Res<Items>,
     models: Res<Models>,
+    world_map: Res<WorldMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     inventory_query: Query<&Inventory, With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
@@ -339,8 +340,7 @@ fn break_blocks(
                 Transform::from_translation(block_position.as_dvec3() + DVec3::splat(0.5)),
             ));
         } else {
-            let model_config = block_config.model.map(|id| models.get_by_id(id));
-            let (model, offset) = build_breaking_model(model_config);
+            let (model, offset) = build_breaking_model(&block_config, &models);
 
             let model_entity = if maybe_block_entity
                 .is_some_and(|e| block_model_query.get(e).is_ok())
@@ -358,12 +358,20 @@ fn break_blocks(
                     .add_child(child);
                 child
             } else {
+                let block_state = world_map
+                    .get_block_state(block_position)
+                    .unwrap_or_default();
+                let rotation = block_state
+                    .rotation()
+                    .map(|r| r.as_quat())
+                    .unwrap_or_default();
                 commands
                     .spawn((
                         model,
                         Transform::from_translation(block_position.as_dvec3() + offset.as_dvec3())
                             // Scale a little so it envelops the block
-                            .with_scale(DVec3::splat(1.001)),
+                            .with_scale(DVec3::splat(1.001))
+                            .with_rotation(rotation),
                         // The model shouldn't show until some progress has been made
                         ModelVisibility::Hidden,
                         BreakingBlockMarker,
@@ -472,24 +480,29 @@ fn break_particles(
     })
 }
 
-fn build_breaking_model(model: Option<&ModelConfig>) -> (Model, Vec3) {
-    if let Some(model) = model {
+fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, Vec3) {
+    if let Some(model_id) = block_config.model {
+        let model = models.get_by_id(model_id);
         let mut mesh_vertices = Vec::new();
         let mut mesh_uvs = Vec::new();
         let mut mesh_normals = Vec::new();
         let mut mesh_indices = Vec::new();
-        let mut i = 0;
+        let mut current_index = 0;
+
         for mesh in model.meshes.iter() {
             mesh_vertices.extend(
                 mesh.vertices
                     .iter()
                     .cloned()
                     .zip(&mesh.normals)
+                    // Since scaling isn't possible, we simply push the mesh a little in the
+                    // direction of the normal to have it overlay the mesh of the thing that is
+                    // breaking.
                     .map(|(v, n)| (Vec3::from_array(v) + Vec3::from_array(*n) * 0.001).to_array()),
             );
             mesh_normals.extend(&mesh.normals);
-            mesh_indices.extend(mesh.indices.iter().map(|index| index + i));
-            i += mesh.indices.len() as u32;
+            mesh_indices.extend(mesh.indices.iter().map(|index| index + current_index));
+            current_index += mesh.indices.len() as u32;
 
             for (k, uv_quad) in mesh.uvs.chunks_exact(4).enumerate() {
                 let mut min = [f32::MAX, f32::MAX];
@@ -563,6 +576,86 @@ fn build_breaking_model(model: Option<&ModelConfig>) -> (Model, Vec3) {
                 collider: None,
             },
             Vec3::ZERO,
+        )
+    } else if let Some(quads) = &block_config.quads {
+        let mut mesh_vertices = Vec::new();
+        let mut mesh_uvs = Vec::new();
+        let mut mesh_normals = Vec::new();
+        let mut mesh_indices = Vec::new();
+
+        for (i, quad) in quads.iter().enumerate() {
+            let normals = [
+                (Vec3::from_array(quad.vertices[1]) - Vec3::from_array(quad.vertices[0]))
+                    .cross(Vec3::from_array(quad.vertices[2]) - Vec3::from_array(quad.vertices[1]))
+                    .to_array(),
+                (Vec3::from_array(quad.vertices[3]) - Vec3::from_array(quad.vertices[1]))
+                    .cross(Vec3::from_array(quad.vertices[2]) - Vec3::from_array(quad.vertices[1]))
+                    .to_array(),
+            ];
+
+            mesh_vertices.extend(quad.vertices.map(|v| {
+                [
+                    v[0] - 0.5 + normals[0][0] * 0.0001,
+                    v[1] - 0.5 + normals[0][1] * 0.0001,
+                    v[2] - 0.5 + normals[0][2] * 0.0001,
+                ]
+            }));
+
+            mesh_normals.extend([normals[0], normals[0], normals[1], normals[1]]);
+
+            const INDICES: [u32; 6] = [0, 1, 2, 2, 1, 3];
+            mesh_indices.extend(INDICES.iter().map(|x| x + 4 * i as u32));
+
+            let normal = Vec3::from(normals[0]);
+            let normal_max = normal.abs().cmpeq(Vec3::splat(normal.abs().max_element()));
+
+            let mut uvs: [[f32; 2]; 4] = default();
+            for (i, vertex) in quad.vertices.into_iter().enumerate() {
+                let uv = if normal_max.x {
+                    Vec3::from_array(vertex).zy()
+                } else if normal_max.y {
+                    Vec3::from_array(vertex).xz()
+                } else {
+                    Vec3::from_array(vertex).xy()
+                };
+
+                if i == 0 {
+                    uvs[0] = [uv.x - uv.x.floor(), uv.y - uv.y.floor()];
+                } else if i == 1 {
+                    uvs[1] = [
+                        // This is just the fraction, but instead of using `f32::fract`
+                        // we do this so it's inversed for negative numbers. e.g. -0.6
+                        // yields 0.4, which is what we want because that is the distance
+                        // from -1.0 to -0.6
+                        uv.x - uv.x.floor(),
+                        // Since this is on the high side of the range extracting the fract is harder since it
+                        // can be a whole number. e.g a position of 1.0 should give a fraction of 1.0, not 0.0.
+                        uv.y - (uv.y.ceil() - 1.0),
+                    ];
+                } else if i == 2 {
+                    uvs[2] = [uv.x - (uv.x.ceil() - 1.0), uv.y - uv.y.floor()];
+                } else if i == 3 {
+                    uvs[3] = [uv.x - (uv.x.ceil() - 1.0), uv.y - (uv.y.ceil() - 1.0)];
+                }
+            }
+
+            mesh_uvs.extend(uvs);
+        }
+
+        (
+            Model::Custom {
+                mesh_indices,
+                mesh_vertices,
+                mesh_normals,
+                mesh_uvs: Some(mesh_uvs),
+                material_color_texture: None,
+                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
+                material_alpha_mode: 2,
+                material_alpha_cutoff: 0.0,
+                material_double_sided: false,
+                collider: None,
+            },
+            Vec3::splat(0.5),
         )
     } else {
         let mesh_vertices = vec![

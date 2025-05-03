@@ -1,0 +1,40 @@
+{
+    "parent": "default_block.json",
+    "name": "glass",
+    "faces": {
+        "top": "glass.png",
+        "bottom": "glass.png",
+        "left": "glass.png",
+        "right": "glass.png",
+        "front": "glass.png",
+        "back": "glass.png"
+    },
+    "material": "glass",
+    "light_attenuation": 0,
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "step": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "glass_1.ogg",
+            "glass_2.ogg",
+            "glass_1.ogg",
+            "glass_2.ogg"
+        ]
+    }
+}
