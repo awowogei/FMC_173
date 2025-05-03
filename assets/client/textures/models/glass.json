@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "glass.png",
+        "bottom": "glass.png",
+        "left": "glass.png",
+        "right": "glass.png",
+        "front": "glass.png",
+        "back": "glass.png"
+    }
+}

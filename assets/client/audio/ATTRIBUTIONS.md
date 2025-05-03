@@ -12,4 +12,8 @@ LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 [pain - breathing](https://freesound.org/people/Valerie-Vivegnis/sounds/768191/) by Valerie-Vivegnis
 LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+[Breaking glass 11](https://freesound.org/people/jorickhoofd/sounds/179239/) by jorickhoofd
+LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+[Exploding lightbulb 2](https://freesound.org/people/jorickhoofd/sounds/179264/) by jorickhoofd
+LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 
