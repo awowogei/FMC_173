@@ -25,6 +25,8 @@ pub enum MovementPluginPacket<'a> {
     Velocity(Vec3),
     /// Notifies the plugin of which models it should collide with.
     Models(&'a Vec<u32>),
+    /// Changes the game mode
+    GameMode(u32),
 }
 
 fn send_block_models(

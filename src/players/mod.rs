@@ -222,6 +222,11 @@ fn add_players(
 
         net.send_one(
             player_entity,
+            messages::Plugin::Enable("movement".to_owned()),
+        );
+
+        net.send_one(
+            player_entity,
             messages::PlayerPosition {
                 position: bundle.transform.translation,
             },
@@ -405,26 +410,9 @@ fn rotate_player_model(
 fn on_gamemode_update(
     net: Res<Server>,
     player_query: Query<(Entity, &GameMode), Changed<GameMode>>,
-    mut current_movement_function: Local<HashMap<Entity, Option<String>>>,
 ) {
     for (player_entity, gamemode) in player_query.iter() {
-        let current_movement_function = current_movement_function.entry(player_entity).or_default();
-        if let Some(name) = current_movement_function.take() {
-            net.send_one(player_entity, messages::Plugin::Disable(name));
-        }
-
         match gamemode {
-            GameMode::Creative => {
-                let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
-                health_visibility.set_hidden("health".to_owned());
-                net.send_one(player_entity, health_visibility);
-
-                net.send_one(
-                    player_entity,
-                    messages::Plugin::Enable("creative".to_owned()),
-                );
-                *current_movement_function = Some("creative".to_owned());
-            }
             GameMode::Survival => {
                 let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
                 health_visibility.set_visible("health".to_owned());
@@ -432,9 +420,26 @@ fn on_gamemode_update(
 
                 net.send_one(
                     player_entity,
-                    messages::Plugin::Enable("movement".to_owned()),
+                    messages::PluginData {
+                        plugin: "movement".to_owned(),
+                        data: bincode::serialize(&movement::MovementPluginPacket::GameMode(0))
+                            .unwrap(),
+                    },
                 );
-                *current_movement_function = Some("movement".to_owned());
+            }
+            GameMode::Creative => {
+                let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
+                health_visibility.set_hidden("health".to_owned());
+                net.send_one(player_entity, health_visibility);
+
+                net.send_one(
+                    player_entity,
+                    messages::PluginData {
+                        plugin: "movement".to_owned(),
+                        data: bincode::serialize(&movement::MovementPluginPacket::GameMode(1))
+                            .unwrap(),
+                    },
+                );
             }
         }
     }

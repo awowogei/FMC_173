@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::time::Duration;
 
 use fmc_client_api as fmc;
 use fmc_client_api::{math::BVec3, prelude::*};
@@ -21,22 +20,33 @@ const JUMP_TIME: f32 = JUMP_VELOCITY * 1.7 / -GRAVITY.y;
 type ModelId = u32;
 
 #[derive(Default)]
-struct Movement {
+struct MovementPlugin {
+    game_mode: GameMode,
     acceleration: Vec3,
     velocity: Vec3,
     is_swimming: bool,
     is_grounded: BVec3,
-    last_jump: Duration,
+    is_flying: bool,
+    last_spacebar: f32,
+    last_jump: f32,
     pressed_keys: HashSet<fmc::Key>,
-    // Cached delta time
-    delta_time: Duration,
+    // Caching delta time to reduce interface hits
+    delta_time: f32,
     models: HashSet<ModelId>,
 }
 
-impl fmc::Plugin for Movement {
+#[derive(Default, PartialEq)]
+enum GameMode {
+    #[default]
+    Survival,
+    Creative,
+}
+
+impl fmc::Plugin for MovementPlugin {
     fn update(&mut self) {
-        self.delta_time = Duration::from_secs_f32(fmc::delta_time());
+        self.delta_time = fmc::delta_time();
         self.last_jump += self.delta_time;
+        self.last_spacebar += self.delta_time;
         self.accelerate();
         self.simulate_physics();
     }
@@ -48,6 +58,8 @@ impl fmc::Plugin for Movement {
             Velocity(Vec3),
             /// Notifies the plugin of which models it should collide with.
             Models(Vec<ModelId>),
+            /// Changes the game mode.
+            Mode(u32),
         }
 
         let Ok(packet) = bincode::deserialize::<Packet>(&data) else {
@@ -61,6 +73,14 @@ impl fmc::Plugin for Movement {
                 self.models.clear();
                 self.models.extend(models);
             }
+            Packet::Mode(mode) => match mode {
+                0 => {
+                    self.game_mode = GameMode::Survival;
+                    self.is_flying = false;
+                }
+                1 => self.game_mode = GameMode::Creative,
+                _ => (),
+            },
         }
     }
 
@@ -76,17 +96,28 @@ impl fmc::Plugin for Movement {
     }
 }
 
-fmc::register_plugin!(Movement);
+fmc::register_plugin!(MovementPlugin);
 
-impl Movement {
+impl MovementPlugin {
     fn accelerate(&mut self) {
         let camera_transform = fmc::get_camera_transform();
         let camera_forward = camera_transform.forward();
         let forward = Vec3::new(camera_forward.x, 0., camera_forward.z);
         let sideways = Vec3::new(-camera_forward.z, 0., camera_forward.x);
 
+        if self.is_flying {
+            self.velocity.y = 0.0;
+        }
+
         for key_update in fmc::keyboard_input() {
             if key_update.released {
+                if self.game_mode == GameMode::Creative && key_update.key == fmc::Key::Space {
+                    if self.last_spacebar < 0.25 {
+                        self.is_flying = !self.is_flying;
+                        self.velocity = Vec3::ZERO;
+                    }
+                    self.last_spacebar = 0.0;
+                }
                 self.pressed_keys.remove(&key_update.key);
             } else {
                 self.pressed_keys.insert(key_update.key);
@@ -102,15 +133,19 @@ impl Movement {
                 fmc::Key::KeyA => horizontal_acceleration -= sideways,
                 fmc::Key::KeyD => horizontal_acceleration += sideways,
                 fmc::Key::Space => {
-                    if self.is_swimming {
+                    if self.is_flying {
+                        self.velocity.y = JUMP_VELOCITY * 2.0;
+                    } else if self.is_swimming {
                         vertical_acceleration.y = 20.0
-                    } else if self.is_grounded.y && self.last_jump.as_secs_f32() > JUMP_TIME {
-                        self.last_jump = Duration::default();
+                    } else if self.is_grounded.y && self.last_jump > JUMP_TIME {
+                        self.last_jump = 0.0;
                         self.velocity.y = JUMP_VELOCITY;
                     }
                 }
                 fmc::Key::Shift => {
-                    if self.is_swimming {
+                    if self.is_flying {
+                        self.velocity.y = -JUMP_VELOCITY * 2.0;
+                    } else if self.is_swimming {
                         vertical_acceleration.y = -30.0
                     }
                 }
@@ -124,7 +159,12 @@ impl Movement {
 
         let mut acceleration = horizontal_acceleration + vertical_acceleration;
 
-        if self.is_swimming {
+        if self.is_flying {
+            acceleration *= 140.0;
+            if self.pressed_keys.contains(&fmc::Key::Control) {
+                acceleration *= 10.0;
+            }
+        } else if self.is_swimming {
             if acceleration.y == 0.0 {
                 acceleration.y = -10.0;
             }
@@ -143,7 +183,7 @@ impl Movement {
             acceleration *= 20.0;
         }
 
-        if !self.is_swimming {
+        if !self.is_flying && !self.is_swimming {
             acceleration += GRAVITY;
         }
 
@@ -153,7 +193,7 @@ impl Movement {
     // TODO: This tunnels if you move faster than maybe a few blocks a second
     fn simulate_physics(&mut self) {
         let player_transform = fmc::get_player_transform();
-        let delta_time = Vec3::splat(self.delta_time.as_secs_f32());
+        let delta_time = Vec3::splat(self.delta_time);
 
         if self.velocity.x != 0.0 {
             self.is_grounded.x = false;
@@ -279,10 +319,7 @@ impl Movement {
 
         // XXX: Pow(4) is just to scale it further towards zero when friction is high. The function
         // should be read as 'velocity *= friction^time'
-        self.velocity = self.velocity
-            * (1.0 - friction)
-                .powf(4.0)
-                .powf(self.delta_time.as_secs_f32());
+        self.velocity = self.velocity * (1.0 - friction).powf(4.0).powf(self.delta_time);
 
         // Give a little boost when exiting water so that the bob stays constant.
         if was_swimming && !self.is_swimming {
