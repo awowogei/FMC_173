@@ -61,9 +61,8 @@ impl Settings {
 
             let (name, value) = line.split_once("=").unwrap_or_else(|| {
                 panic!(
-                    "Error reading server_settings.txt at line {}.
-                       All settings must be of the format 'name = setting', it cannot be '{}'",
-                    line_num, line
+                    "Error reading server_settings.txt at line {line_num}. \
+                    All settings must be of the format 'name = setting', it cannot be: '{line}'",
                 );
             });
             let name = name.trim();
@@ -79,13 +78,11 @@ impl Settings {
                     server_settings.seed = hasher.finish();
                 }
                 "pvp" => {
-                    let value = value.parse::<bool>().unwrap_or_else(|_| {
+                    server_settings.pvp = value.parse::<bool>().unwrap_or_else(|_| {
                         panic!(
-                            "Server property 'pvp' must be one of 'true/false', cannot be: {}",
-                            value
+                            "Server property 'pvp' must be one of 'true/false', cannot be: '{value}'",
                         )
                     });
-                    server_settings.pvp = value;
                 }
                 _ => {
                     panic!("Invalid setting '{name}' in settings file at line {line}",);
