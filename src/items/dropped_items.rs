@@ -1,7 +1,7 @@
 use fmc::{
     bevy::math::DVec3,
     items::{ItemStack, Items},
-    models::{Model, ModelMap, Models},
+    models::{AnimationPlayer, Model, ModelMap, Models},
     physics::{Collider, Physics},
     prelude::*,
     utils::Rng,
@@ -14,7 +14,7 @@ pub struct DroppedItemsPlugin;
 impl Plugin for DroppedItemsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, pick_up_items)
-            .add_systems(Update, manage_item_models.in_set(DropItems));
+            .add_systems(Update, spawn_model.in_set(DropItems));
     }
 }
 
@@ -22,7 +22,7 @@ impl Plugin for DroppedItemsPlugin {
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub struct DropItems;
 
-/// An item that is dropped on the ground.
+/// An item stack that is dropped on the ground.
 #[derive(Component, Deref, DerefMut)]
 #[require(Transform)]
 pub struct DroppedItem(ItemStack);
@@ -33,7 +33,7 @@ impl DroppedItem {
     }
 }
 
-fn manage_item_models(
+fn spawn_model(
     mut commands: Commands,
     models: Res<Models>,
     items: Res<Items>,
@@ -48,24 +48,33 @@ fn manage_item_models(
         let item_config = items.get_config(&item_id);
         let model_config = models.get_by_id(item_config.model_id);
 
-        // TODO: This won't work if the model must be scaled up
-        //
-        // We want dropped items to have a uniform size. If the model's width is larger than
-        // HALF_SIZE*2 we scale it by width. If it is already smaller than that, we instead scale
-        // the height.
-        const HALF_SIZE: f64 = 0.1;
         let mut aabb = model_config.aabb.clone();
-        let xz_scale = HALF_SIZE / aabb.half_extents.x.max(aabb.half_extents.z);
-        let y_scale = HALF_SIZE * 1.5 / aabb.half_extents.y;
-        let scale = if xz_scale < 1.0 { xz_scale } else { y_scale };
+
+        // There are two scales, one scales the model to have a volume and the other scales
+        // it to be some height. We choose whatever makes it smaller.
+        const HALF_VOLUME: f64 = 0.15 * 0.15 * 0.15;
+        let half_volume = aabb.half_extents.x * aabb.half_extents.y * aabb.half_extents.z;
+        let volume_scale = (HALF_VOLUME / half_volume).cbrt();
+        const HALF_HEIGHT: f64 = 0.25;
+        let y_scale = HALF_HEIGHT / aabb.half_extents.y;
+        let scale = volume_scale.min(y_scale);
 
         transform.scale = DVec3::splat(scale);
-        // Moving the center down will make the model float.
-        aabb.center.y -= 0.1;
+        // Moving it down to create some constant spacing between the item and the ground.
+        aabb.center.y -= 0.01 / scale;
+
+        let mut animation_player = AnimationPlayer::default();
+        let animation_index = model_config.animations.get("dropped").cloned();
+        animation_player.set_idle_animation(animation_index);
+        animation_player.set_move_animation(animation_index);
 
         let mut entity_commands = commands.entity(entity);
 
-        entity_commands.insert((Model::Asset(item_config.model_id), Collider::Aabb(aabb)));
+        entity_commands.insert((
+            Model::Asset(item_config.model_id),
+            animation_player,
+            Collider::Aabb(aabb),
+        ));
 
         if maybe_physics.is_none() {
             let random = rng.next_f32() * std::f32::consts::TAU;
