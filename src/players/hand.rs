@@ -840,14 +840,10 @@ fn handle_right_clicks(
                         let chunk_position = ChunkPosition::from(replaced_block_position);
                         if let Some(entities) = model_map.get_entities(&chunk_position) {
                             for (collider, global_transform) in model_query.iter_many(entities) {
-                                if collider
-                                    .intersection(
-                                        &global_transform.compute_transform(),
-                                        &replaced_collider,
-                                        &Transform::IDENTITY,
-                                    )
-                                    .is_some()
-                                {
+                                let collider =
+                                    collider.transform(&global_transform.compute_transform());
+
+                                if collider.intersection(&replaced_collider).is_some() {
                                     continue;
                                 }
                             }
