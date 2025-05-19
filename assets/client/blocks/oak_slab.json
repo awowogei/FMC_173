@@ -1,0 +1,199 @@
+{
+    "parent": "default_block.json",
+    "name": "oak_slab",
+    "placement": {
+        "floor": true,
+        "ceiling": true,
+        "sides": true
+    },
+    "tools": ["axe"],
+    "drop": {
+        "requires_tool": false,
+        "drop": "oak_slab"
+    },
+    "light_attenuation": 1,
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "step": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    },
+    "quads": [
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "front"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "back"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "right"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "left"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "top"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "oak_planks.png",
+            "cull_face": "bottom"
+        }
+    ]
+}
