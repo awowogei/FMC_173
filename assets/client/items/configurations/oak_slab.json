@@ -1,0 +1,7 @@
+{
+    "name": "Oak Slab",
+    "image": "oak_stairs.png",
+    "block": "oak_slab",
+    "equip_model": "oak_stairs",
+    "stack_size": 64
+}
