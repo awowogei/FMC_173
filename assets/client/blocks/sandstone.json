@@ -1,0 +1,44 @@
+{
+    "parent": "default_block.json",
+    "name": "sandstone",
+    "faces": {
+        "top": "sandstone_top.png",
+        "bottom": "sandstone_bottom.png",
+        "left": "sandstone.png",
+        "right": "sandstone.png",
+        "front": "sandstone.png",
+        "back": "sandstone.png"
+    },
+    "tools": ["pickaxe"],
+    "hardness": 6,
+    "drop": {
+        "requires_tool": true,
+        "drop": "sandstone"
+    },
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    }
+}
