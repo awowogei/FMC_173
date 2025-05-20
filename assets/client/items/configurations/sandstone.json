@@ -1,0 +1,7 @@
+{
+    "name": "Sandstone",
+    "image": "sandstone.png",
+    "block": "sandstone",
+    "equip_model": "sandstone",
+    "stack_size": 64
+}

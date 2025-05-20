@@ -1,0 +1,12 @@
+[
+    {
+        "collection_name": "crafting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["sand", 1], ["sand", 1]],
+            [["sand", 1], ["sand", 1]]
+        ],
+        "output_item": "sandstone",
+        "output_amount": 2
+    }
+]

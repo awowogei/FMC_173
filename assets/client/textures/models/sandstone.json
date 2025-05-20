@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "sandstone_top.png",
+        "bottom": "sandstone_bottom.png",
+        "left": "sandstone.png",
+        "right": "sandstone.png",
+        "front": "sandstone.png",
+        "back": "sandstone.png"
+    }
+}
