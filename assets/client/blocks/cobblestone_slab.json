@@ -1,0 +1,200 @@
+{
+    "parent": "default_block.json",
+    "name": "cobblestone_slab",
+    "placement": {
+        "floor": true,
+        "ceiling": true,
+        "sides": true
+    },
+    "tools": ["pickaxe"],
+    "hardness": 6,
+    "drop": {
+        "requires_tool": true,
+        "drop": "cobblestone_slab"
+    },
+    "light_attenuation": 1,
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    },
+    "quads": [
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "front"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "back"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "right"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "left"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.5,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.5,
+                    1.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "top"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "cobblestone.png",
+            "cull_face": "bottom"
+        }
+    ]
+}
