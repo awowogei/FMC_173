@@ -1,0 +1,11 @@
+[
+    {
+        "collection_name": "crafting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["cobblestone", 1],["cobblestone", 1], ["cobblestone", 1]]
+        ],
+        "output_item": "cobblestone_slab",
+        "output_amount": 3
+    }
+]

@@ -1,0 +1,7 @@
+{
+    "name": "Cobblestone Slab",
+    "image": "cobblestone_slab.png",
+    "block": "cobblestone_slab",
+    "equip_model": "cobblestone_slab",
+    "stack_size": 64
+}
