@@ -1,4 +1,5 @@
 {
+    "parent": "default_non_solid_block.json",
     "type": "cube",
     "name": "wheat_4",
     "material": "transparent",
