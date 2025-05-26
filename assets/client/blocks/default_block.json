@@ -11,5 +11,17 @@
     },
     "drag": [ 0.90, 0.02, 0.90 ],
     "hardness": 1.0,
-    "interactable": false
+    "interactable": false,
+    "fog": {
+        "color": {
+            "LinearRgba": {
+                "red": 0.556,
+                "green": 0.71,
+                "blue": 0.97,
+                "alpha": 1
+            }
+        },
+        "start": 250,
+        "stop": 500
+    }
 }
