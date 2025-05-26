@@ -1,0 +1,7 @@
+{
+    "name": "Birch Log",
+    "image": "birch_log.png",
+    "block": "birch_log",
+    "equip_model": "birch_log",
+    "stack_size": 64
+}

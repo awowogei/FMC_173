@@ -1,0 +1,10 @@
+{
+    "block": {
+        "top": "birch_log_top.png",
+        "bottom": "birch_log_top.png",
+        "left": "birch_log_side.png",
+        "right": "birch_log_side.png",
+        "front": "birch_log_side.png",
+        "back": "birch_log_side.png"
+    }
+}

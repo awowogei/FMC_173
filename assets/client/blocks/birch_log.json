@@ -1,0 +1,43 @@
+{
+    "parent": "default_block.json",
+    "name": "birch_log",
+    "faces": {
+        "top": "birch_log_top.png",
+        "bottom": "birch_log_top.png",
+        "left": "birch_log_side.png",
+        "right": "birch_log_side.png",
+        "front": "birch_log_side.png",
+        "back": "birch_log_side.png"
+    },
+    "tools": ["axe"],
+    "drop": {
+        "requires_tool": false,
+        "drop": "birch_log"
+    },
+    "sound": {
+        "place": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "step": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "hit": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ],
+        "destroy": [
+            "wood_1.ogg",
+            "wood_2.ogg",
+            "wood_3.ogg",
+            "wood_4.ogg"
+        ]
+    }
+}
