@@ -47,7 +47,8 @@ impl Biomes {
             air: "air".to_owned(),
             sand: "sand".to_owned(),
             blueprints: vec![
-                "distribute_trees".to_owned(),
+                "oak".to_owned(),
+                "birch".to_owned(),
                 "tall_grass".to_owned(),
                 "coal_ore".to_owned(),
                 "iron_ore".to_owned(),

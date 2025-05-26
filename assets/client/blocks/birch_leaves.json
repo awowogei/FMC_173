@@ -1,0 +1,40 @@
+{
+    "parent": "default_block.json",
+    "name": "birch_leaves",
+    "material": "birch_leaves",
+    "faces": {
+        "top": "birch_leaves.png",
+        "bottom": "birch_leaves.png",
+        "left": "birch_leaves.png",
+        "right": "birch_leaves.png",
+        "front": "birch_leaves.png",
+        "back": "birch_leaves.png"
+    },
+    "light_attenuation": 1,
+    "sound": {
+        "place": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ],
+        "step": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ],
+        "hit": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ],
+        "destroy": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ]
+    }
+}
