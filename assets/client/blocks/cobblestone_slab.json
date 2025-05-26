@@ -167,8 +167,7 @@
                     1.0
                 ]
             ],
-            "texture": "cobblestone.png",
-            "cull_face": "top"
+            "texture": "cobblestone.png"
         },
         {
             "vertices": [
