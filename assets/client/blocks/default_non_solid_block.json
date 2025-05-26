@@ -1,0 +1,18 @@
+{
+    "type": "cube",
+    "material": "block",
+    "drag": [ 0.90, 0.02, 0.90 ],
+    "interactable": false,
+    "fog": {
+        "color": {
+            "LinearRgba": {
+                "red": 0.556,
+                "green": 0.71,
+                "blue": 0.97,
+                "alpha": 1
+            }
+        },
+        "start": 250,
+        "stop": 500
+    }
+}

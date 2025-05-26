@@ -1,0 +1,81 @@
+{
+    "parent": "default_non_solid_block.json",
+    "type": "cube",
+    "name": "tall_grass",
+    "material": "transparent",
+    "particle_texture": "blocks/grass_top.png",
+    "hardness": 0,
+    "light_attenuation": 0,
+    "hitbox": {
+        "min": [
+            0,
+            0,
+            0
+        ],
+        "max": [
+            1,
+            0.9375,
+            1
+        ]
+    },
+    "sound": {
+        "destroy": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ]
+    },
+    "quads": [
+        {
+            "vertices": [
+                [
+                    0.0,
+                    1.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    1.0,
+                    1.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "tall_grass.png"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    1.0,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    1.0,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "tall_grass.png"
+        }
+    ]
+}

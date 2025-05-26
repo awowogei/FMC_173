@@ -1,0 +1,10 @@
+{
+    "type": "distribution",
+    "count": 20,
+    "blueprint": {
+        "type": "decoration",
+        "decoration_block": "tall_grass",
+        "placed_on": ["grass"],
+        "can_replace": ["air"]
+    }
+}
