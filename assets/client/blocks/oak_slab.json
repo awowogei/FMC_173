@@ -166,8 +166,7 @@
                     1.0
                 ]
             ],
-            "texture": "oak_planks.png",
-            "cull_face": "top"
+            "texture": "oak_planks.png"
         },
         {
             "vertices": [
