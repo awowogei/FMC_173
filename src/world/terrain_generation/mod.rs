@@ -11,10 +11,11 @@ use fmc::{
 
 use rand::SeedableRng;
 
-use super::biomes::Biomes;
+mod biomes;
+mod blueprints;
 
 pub struct Earth {
-    biomes: Biomes,
+    biomes: biomes::Biomes,
     continents: Noise,
     terrain_height: Noise,
     terrain_shape: Noise,
@@ -180,7 +181,7 @@ impl Earth {
         );
 
         Self {
-            biomes: Biomes::load(blocks),
+            biomes: biomes::Biomes::load(blocks),
             continents,
             terrain_height,
             terrain_shape,

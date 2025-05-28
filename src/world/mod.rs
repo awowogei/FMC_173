@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::settings::Settings;
 
-mod biomes;
 pub mod blocks;
 mod terrain_generation;
 
