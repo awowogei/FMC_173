@@ -48,6 +48,7 @@ impl Biomes {
             blueprints: vec![
                 "oak".to_owned(),
                 "birch".to_owned(),
+                "large_oak".to_owned(),
                 "tall_grass".to_owned(),
                 "coal_ore".to_owned(),
                 "iron_ore".to_owned(),
