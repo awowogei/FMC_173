@@ -1,15 +1,17 @@
 {
     "type": "distribution",
-    "count": 2,
+    "count": 1,
     "blueprint": {
         "type": "tree",
-        "trunk_block": "birch_log",
-        "leaf_block": "birch_leaves",
+        "trunk_block": "oak",
+        "leaf_block": "leaves",
+        "trunk_height": 5,
         "foliage_style": {
-            "type": "normal"
+            "type": "blob",
+            "radius": 3
         },
-        "trunk_height": 6,
-        "random_height": 2,
+        "branches": [2, 4],
+        "random_height": 4,
         "trunk_width": 1,
         "soil_blocks": [
             "grass"
