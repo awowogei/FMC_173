@@ -33,5 +33,12 @@ impl Plugin for ExtractBundledAssetsPlugin {
                 }
             }
         }
+
+        if std::env::args()
+            .nth(1)
+            .is_some_and(|arg| arg == "--extract-assets")
+        {
+            std::process::exit(0);
+        };
     }
 }
