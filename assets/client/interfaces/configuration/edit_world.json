@@ -1,0 +1,40 @@
+{
+    "settings": [
+        {
+            "ButtonSelection": {
+                "name": "Game Mode",
+                "entries": [
+                    "Survival",
+                    "Creative"
+                ],
+                "selected": 0,
+                "images": [
+                    "textures/interfaces/heart.png",
+                    "textures/items/iron_pickaxe.png"
+                ]
+            }
+        },
+        {
+            "ButtonSelection": {
+                "name": "Difficulty",
+                "entries": [
+                    "Peaceful",
+                    "Easy",
+                    "Normal",
+                    "Hard"
+                ],
+                "selected": 2,
+                "images": [
+                    "textures/interfaces/peaceful.png",
+                    "textures/interfaces/easy.png",
+                    "textures/interfaces/normal.png",
+                    "textures/interfaces/hard.png"
+                ],
+                "flex_direction": "Column"
+            }
+        }
+    ],
+    "world": [],
+    "advanced": [],
+    "mods": []
+}

@@ -4,7 +4,6 @@ use cargo_metadata::DependencyKind;
 
 // Compress the assets from game + mods into an archive that is included in the executable.
 fn main() {
-    // TODO: This doesn't seem to stop it from rebuilding when there are no changes
     println!("cargo::rerun-if-changed=assets");
 
     if std::env::var("DOCS_RS").is_ok() {

@@ -27,7 +27,9 @@ pub struct Clock {
 
 impl Clock {
     pub fn set_time(&mut self, time: f32) {
-        self.time = Duration::from_secs_f32(time % DAY_LENGTH);
+        // rem_euclid is just modulo that wraps around when the time is negative. e.g. -10
+        // gives DAY_LENGTH - 10 instead of just -10
+        self.time = Duration::from_secs_f32(time.rem_euclid(DAY_LENGTH));
     }
 
     pub fn get_time(&self) -> f32 {
