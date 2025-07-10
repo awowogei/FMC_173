@@ -58,7 +58,7 @@ fn update_mob_map(
         let chunk_position = ChunkPosition::from(transform.translation());
 
         if !mob_map.insert_or_move(chunk_position, entity) {
-            despawn_event_writer.send(MobDespawnEvent { entity });
+            despawn_event_writer.write(MobDespawnEvent { entity });
         }
     }
 
@@ -75,14 +75,14 @@ fn update_mob_map(
 
                 let blocks = Blocks::get();
                 let surface = Surface::new(chunk, &[blocks.get_id("grass")], blocks.get_id("air"));
-                spawn_event_writer.send(MobSpawnEvent {
+                spawn_event_writer.write(MobSpawnEvent {
                     position: *chunk_position,
                     surface,
                 });
             }
             ChunkSimulationEvent::Stop(chunk_position) => {
                 let entities = mob_map.remove(chunk_position);
-                despawn_event_writer.send_batch(
+                despawn_event_writer.write_batch(
                     entities
                         .into_iter()
                         .map(|entity| MobDespawnEvent { entity }),
@@ -273,7 +273,7 @@ fn handle_hand_hits(
             let horizontal = camera.forward().xz().normalize() * 10.0;
             physics.velocity = DVec3::new(horizontal.x, 7.0, horizontal.y);
 
-            damage_events.send(MobDamageEvent { mob_entity, damage });
+            damage_events.write(MobDamageEvent { mob_entity, damage });
         }
     }
 }
@@ -341,7 +341,7 @@ fn damage_mobs(
         if timer.just_finished() {
             if mob.is_dead() {
                 // Despawn the mob after its invincibility frames end
-                commands.entity(mob_entity).despawn_recursive();
+                commands.entity(mob_entity).despawn();
             }
 
             if let Some(mut color) = maybe_color {

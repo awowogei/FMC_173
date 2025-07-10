@@ -242,7 +242,7 @@ fn furnace(
         }
 
         if furnace.heat != 0.0 && !furnace.on {
-            block_update_writer.send(BlockUpdate::Swap {
+            block_update_writer.write(BlockUpdate::Swap {
                 position: *block_position,
                 block_id: Blocks::get().get_id("furnace_on"),
                 block_state: world_map.get_block_state(*block_position),
@@ -250,7 +250,7 @@ fn furnace(
 
             furnace.on = true;
         } else if furnace.heat == 0.0 && furnace.on {
-            block_update_writer.send(BlockUpdate::Swap {
+            block_update_writer.write(BlockUpdate::Swap {
                 position: *block_position,
                 block_id: Blocks::get().get_id("furnace"),
                 block_state: world_map.get_block_state(*block_position),
@@ -356,17 +356,17 @@ fn handle_block_hits(
         for player_entity in block_hits.read() {
             registry.set_active_furnace(player_entity, furnace_entity);
 
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("furnace/crucible"),
                 node_entity: furnace_entity,
             });
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("furnace/fuel"),
                 node_entity: furnace_entity,
             });
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("furnace/output"),
                 node_entity: furnace_entity,

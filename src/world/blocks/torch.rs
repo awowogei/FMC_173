@@ -52,7 +52,7 @@ fn fragile_break(
                             Some(BlockRotation::Left) => IVec3::NEG_X,
                             None => IVec3::Y,
                         };
-                    block_updates.send(BlockUpdate::Replace {
+                    block_updates.write(BlockUpdate::Replace {
                         position,
                         block_id: Blocks::get().get_id("air"),
                         block_state: None,

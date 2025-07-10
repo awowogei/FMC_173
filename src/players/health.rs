@@ -165,7 +165,7 @@ fn fall_damage(
             / now.duration_since(fall_damage.last_update).as_secs_f64();
         if velocity > -0.1 {
             if fall_damage.hearts.saturating_sub(3) != 0 {
-                damage_events.send(PlayerDamageEvent {
+                damage_events.write(PlayerDamageEvent {
                     player_entity: position_update.player_entity,
                     damage: fall_damage.hearts - 3,
                     knock_back: None,
@@ -314,7 +314,7 @@ fn register_death_interface(
         commands.entity(player_entity).with_children(|parent| {
             let death_interface_entity = parent.spawn(DeathInterface).id();
 
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("death/respawn_button"),
                 node_entity: death_interface_entity,
@@ -342,7 +342,7 @@ fn death_interface(
                 continue;
             }
 
-            respawn_events.send(RespawnEvent {
+            respawn_events.write(RespawnEvent {
                 player_entity: interface_interaction.player_entity,
             });
 

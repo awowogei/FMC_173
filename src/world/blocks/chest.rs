@@ -141,7 +141,7 @@ fn handle_interface_events(
                 held_item.transfer_to(item_stack, quantity);
             }
 
-            block_update_writer.send(BlockUpdate::Data {
+            block_update_writer.write(BlockUpdate::Data {
                 position: *block_position,
                 block_data: Some(serde_json::to_vec(&*chest).map(BlockData).unwrap()),
             });
@@ -164,7 +164,7 @@ fn handle_block_hits(
         for player_entity in block_hits.read() {
             registry.set_active_chest(player_entity, chest_entity);
 
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: "chest".to_owned(),
                 node_entity: chest_entity,

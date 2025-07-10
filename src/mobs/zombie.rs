@@ -193,7 +193,7 @@ fn despawn_zombies(
 ) {
     for despawn_event in despawn_events.read() {
         if zombies.get(despawn_event.entity).is_ok() {
-            commands.entity(despawn_event.entity).despawn_recursive();
+            commands.entity(despawn_event.entity).despawn();
         }
     }
 }
@@ -541,7 +541,7 @@ fn attack(
         {
             let horizontal = zombie_transform.forward().xz().normalize() * 15.0;
             let knock_back = DVec3::new(horizontal.x, 7.0, horizontal.y);
-            damage_event_writer.send(PlayerDamageEvent {
+            damage_event_writer.write(PlayerDamageEvent {
                 player_entity: target,
                 damage: 5,
                 knock_back: Some(knock_back),

@@ -48,7 +48,8 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (
                     on_gamemode_update,
-                    (add_players, apply_deferred).chain(),
+                    handle_gui_settings,
+                    (add_players, ApplyDeferred).chain(),
                     respawn_players,
                     rotate_player_model,
                     discard_items.after(InterfaceEventRegistration),
@@ -216,7 +217,7 @@ fn add_players(
         let bundle = if let Some(save) = PlayerSave::load(&player.username, &database) {
             PlayerBundle::from(save)
         } else {
-            respawn_events.send(RespawnEvent { player_entity });
+            respawn_events.write(RespawnEvent { player_entity });
             PlayerBundle::default()
         };
 
@@ -255,12 +256,12 @@ fn add_players(
 
         let model_entity = commands
             .spawn(Model::Asset(model.id))
-            .set_parent(player_entity)
+            .insert(ChildOf(player_entity))
             .id();
         animation_player.set_target(model_entity);
 
         let discard_items_entity = commands.spawn(DiscardItems).id();
-        registration_events.send(RegisterInterfaceNode {
+        registration_events.write(RegisterInterfaceNode {
             player_entity,
             node_path: "".to_owned(),
             node_entity: discard_items_entity,
@@ -375,7 +376,7 @@ fn respawn_players(
         let mut player_transform = player_query.get_mut(respawn_event.player_entity).unwrap();
         player_transform.translation = spawn_position;
 
-        heal_events.send(HealEvent {
+        heal_events.write(HealEvent {
             player_entity: respawn_event.player_entity,
             healing: u32::MAX,
         });
@@ -426,6 +427,16 @@ fn on_gamemode_update(
                             .unwrap(),
                     },
                 );
+
+                // Change which mode is selected in the settings to reflect the server value
+                net.send_one(
+                    player_entity,
+                    messages::GuiSetting::ButtonSelection {
+                        name: "game_mode".to_owned(),
+                        // Survival button index
+                        selected: 0,
+                    },
+                );
             }
             GameMode::Creative => {
                 let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
@@ -440,6 +451,15 @@ fn on_gamemode_update(
                             .unwrap(),
                     },
                 );
+
+                net.send_one(
+                    player_entity,
+                    messages::GuiSetting::ButtonSelection {
+                        name: "game_mode".to_owned(),
+                        // Creative button index
+                        selected: 1,
+                    },
+                );
             }
         }
     }
@@ -452,12 +472,12 @@ fn discard_items(
     mut commands: Commands,
     mut inventory_query: Query<(&mut HeldInterfaceStack, &GlobalTransform, &Camera), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<DiscardItems>),
     >,
 ) {
     for (mut interface_events, parent) in interface_events.iter_mut() {
-        let (mut held_item, transform, camera) = inventory_query.get_mut(parent.get()).unwrap();
+        let (mut held_item, transform, camera) = inventory_query.get_mut(parent.0).unwrap();
         for event in interface_events.read() {
             if let messages::InterfaceInteraction::PlaceItem { quantity, .. } = *event {
                 let discarded = held_item.take(quantity);
@@ -476,6 +496,28 @@ fn discard_items(
                     },
                 ));
             }
+        }
+    }
+}
+
+fn handle_gui_settings(
+    mut setting_events: EventReader<NetworkMessage<messages::GuiSetting>>,
+    mut game_mode: Query<&mut GameMode>,
+) {
+    for setting in setting_events.read() {
+        match &setting.message {
+            messages::GuiSetting::ButtonSelection { name, selected } => match name.as_str() {
+                "game_mode" => {
+                    let mut game_mode = game_mode.get_mut(setting.player_entity).unwrap();
+                    if *selected == 0 {
+                        *game_mode = GameMode::Survival
+                    } else if *selected == 1 {
+                        *game_mode = GameMode::Creative
+                    }
+                }
+                _ => (),
+            },
+            _ => (),
         }
     }
 }

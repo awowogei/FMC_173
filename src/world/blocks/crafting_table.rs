@@ -214,12 +214,12 @@ fn handle_block_hits(
         for player_entity in block_hits.read() {
             registry.set_active_table(player_entity, crafting_table_entity);
 
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("crafting_table/input"),
                 node_entity: crafting_table_entity,
             });
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("crafting_table/output"),
                 node_entity: crafting_table_entity,
