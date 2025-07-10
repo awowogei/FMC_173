@@ -31,7 +31,7 @@ fn eat_bread(
     mut player_query: Query<&mut Inventory, With<Player>>,
     mut heal_events: EventWriter<HealEvent>,
 ) {
-    let Ok(mut uses) = bread_uses.get_single_mut() else {
+    let Ok(mut uses) = bread_uses.single_mut() else {
         return;
     };
 
@@ -39,7 +39,7 @@ fn eat_bread(
         let mut inventory = player_query.get_mut(player_entity).unwrap();
         let held_item = inventory.held_item_stack_mut();
 
-        heal_events.send(HealEvent {
+        heal_events.write(HealEvent {
             player_entity,
             healing: 8,
         });

@@ -316,11 +316,11 @@ fn break_blocks(
             // TODO: Dropping a block like this is too error prone. If two systems break a block at
             // once, it will dupe. Also too much boilerplate just to drop an item, it should just
             // be:
-            // block_break_events.send(BreakEvent {
+            // block_break_events.write(BreakEvent {
             //     position: IVec3,
             //     something to signify if it should drop
             // })
-            block_update_writer.send(BlockUpdate::Replace {
+            block_update_writer.write(BlockUpdate::Replace {
                 position: block_position,
                 block_id: blocks.get_id("air"),
                 block_state: None,
@@ -406,7 +406,7 @@ fn break_blocks(
         if remove_timout || remove_broken {
             // If the breaking model is the child of a block model, it will be despawned when the
             // block changes, so it will no longer be available.
-            if let Some(mut entity) = commands.get_entity(breaking_block.model_entity) {
+            if let Ok(mut entity) = commands.get_entity(breaking_block.model_entity) {
                 entity.try_despawn();
             }
             return false;
@@ -869,7 +869,7 @@ fn handle_right_clicks(
                             }
                         }
 
-                        block_update_writer.send(BlockUpdate::Replace {
+                        block_update_writer.write(BlockUpdate::Replace {
                             position: replaced_block_position,
                             block_id,
                             block_state,

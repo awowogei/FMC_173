@@ -48,56 +48,56 @@ fn initialize_interface(
     for player_entity in new_player_query.iter() {
         commands.entity(player_entity).with_children(|parent| {
             let inventory_entity = parent.spawn(InventoryNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("inventory"),
                 node_entity: inventory_entity,
             });
 
             let hotbar_entity = parent.spawn(HotbarNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("hotbar"),
                 node_entity: hotbar_entity,
             });
 
             let helmet_entity = parent.spawn(HelmetNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("equipment/helmet"),
                 node_entity: helmet_entity,
             });
 
             let chestplate_entity = parent.spawn(ChestplateNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("equipment/chestplate"),
                 node_entity: chestplate_entity,
             });
 
             let leggings_entity = parent.spawn(LeggingsNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("equipment/leggings"),
                 node_entity: leggings_entity,
             });
 
             let boots_entity = parent.spawn(BootsNode).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("equipment/boots"),
                 node_entity: boots_entity,
             });
 
             let crafting_input_entity = parent.spawn(CraftingInput).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("inventory/crafting_input"),
                 node_entity: crafting_input_entity,
             });
 
             let crafting_output_entity = parent.spawn(CraftingOutput).id();
-            registration_events.send(RegisterInterfaceNode {
+            registration_events.write(RegisterInterfaceNode {
                 player_entity,
                 node_path: String::from("inventory/crafting_output"),
                 node_entity: crafting_output_entity,
@@ -203,12 +203,12 @@ struct InventoryNode;
 fn handle_inventory_events(
     mut inventory_query: Query<(&mut Inventory, &mut HeldInterfaceStack), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<InventoryNode>),
     >,
 ) {
     for (mut events, parent) in interface_events.iter_mut() {
-        let (mut inventory, mut held_item) = inventory_query.get_mut(parent.get()).unwrap();
+        let (mut inventory, mut held_item) = inventory_query.get_mut(parent.0).unwrap();
         let inventory = inventory.bypass_change_detection();
 
         for event in events.read() {
@@ -241,12 +241,12 @@ struct HotbarNode;
 fn handle_hotbar_events(
     mut inventory_query: Query<(&mut Inventory, &mut HeldInterfaceStack), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<HotbarNode>),
     >,
 ) {
     for (mut events, parent) in interface_events.iter_mut() {
-        let (mut inventory, mut held_item) = inventory_query.get_mut(parent.get()).unwrap();
+        let (mut inventory, mut held_item) = inventory_query.get_mut(parent.0).unwrap();
         let inventory = inventory.bypass_change_detection();
 
         for event in events.read() {
@@ -327,12 +327,12 @@ fn handle_equipment_events<T: EquipmentNode + Component>(
     items: Res<Items>,
     mut inventory_query: Query<(&mut Equipment, &mut HeldInterfaceStack), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<T>),
     >,
 ) {
     for (mut events, parent) in interface_events.iter_mut() {
-        let (mut equipment, mut held) = inventory_query.get_mut(parent.get()).unwrap();
+        let (mut equipment, mut held) = inventory_query.get_mut(parent.0).unwrap();
 
         let equipment_item = T::get_item_stack(&mut *equipment);
 
@@ -367,13 +367,13 @@ fn handle_crafting_input_events(
     recipes: Res<Recipes>,
     mut inventory_query: Query<(Entity, &mut HeldInterfaceStack, &mut CraftingGrid), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<CraftingInput>),
     >,
 ) {
     for (mut events, parent) in interface_events.iter_mut() {
         let (player_entity, mut held_item, mut crafting_input) =
-            inventory_query.get_mut(parent.get()).unwrap();
+            inventory_query.get_mut(parent.0).unwrap();
         for event in events.read() {
             match *event {
                 messages::InterfaceInteraction::TakeItem {
@@ -423,7 +423,7 @@ fn handle_crafting_output_events(
     recipes: Res<Recipes>,
     mut inventory_query: Query<(Entity, &mut CraftingGrid, &mut HeldInterfaceStack), With<Player>>,
     mut interface_events: Query<
-        (&mut InterfaceEvents, &Parent),
+        (&mut InterfaceEvents, &ChildOf),
         (Changed<InterfaceEvents>, With<CraftingOutput>),
     >,
 ) {
@@ -433,7 +433,7 @@ fn handle_crafting_output_events(
                 continue;
             };
             let (player_entity, mut crafting_input, mut held_item) =
-                inventory_query.get_mut(parent.get()).unwrap();
+                inventory_query.get_mut(parent.0).unwrap();
             let Some(output) = recipes.get("crafting").get_output(&crafting_input) else {
                 continue;
             };

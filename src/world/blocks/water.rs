@@ -806,7 +806,7 @@ fn spread_water(
 
     update_timer.tick(time.delta());
     if update_timer.just_finished() {
-        block_updates.send_batch(updates.drain().filter_map(|(position, water_block)| {
+        block_updates.write_batch(updates.drain().filter_map(|(position, water_block)| {
             // TODO: The idea is that it's not supposed to generate invalid water states, but it
             // does often when trying to remove the water at edges. Ending up with states like
             // [Zero, Zero, One, One] and variations. This is probably what introduces the

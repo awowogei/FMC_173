@@ -82,7 +82,7 @@ fn remove_duck(
     mut player: RemovedComponents<Player>,
 ) {
     for _removed in player.read() {
-        commands.entity(duck.single()).despawn_recursive();
+        commands.entity(duck.single().unwrap()).despawn();
     }
 }
 

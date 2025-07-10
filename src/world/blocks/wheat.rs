@@ -131,7 +131,7 @@ fn grow(
             _ => unreachable!(),
         };
 
-        block_update_writer.send(BlockUpdate::Swap {
+        block_update_writer.write(BlockUpdate::Swap {
             position: *block_position,
             block_id,
             block_state: None,

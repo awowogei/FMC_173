@@ -58,7 +58,7 @@ fn use_hoe(
     mut block_update_writer: EventWriter<BlockUpdate>,
     mut rng: Local<Rng>,
 ) {
-    let Ok((mut uses, config)) = hoe_uses.get_single_mut() else {
+    let Ok((mut uses, config)) = hoe_uses.single_mut() else {
         return;
     };
 
@@ -105,7 +105,7 @@ fn use_hoe(
             }
         }
 
-        block_update_writer.send(BlockUpdate::Replace {
+        block_update_writer.write(BlockUpdate::Replace {
             position: *block_position,
             block_id: soil_id,
             block_state: None,

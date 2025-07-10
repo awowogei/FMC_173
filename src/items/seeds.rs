@@ -48,7 +48,7 @@ fn use_seeds(
     mut hoe_uses: Query<(&mut ItemUses, &SeedConfig), Changed<ItemUses>>,
     mut block_update_writer: EventWriter<BlockUpdate>,
 ) {
-    let Ok((mut uses, config)) = hoe_uses.get_single_mut() else {
+    let Ok((mut uses, config)) = hoe_uses.single_mut() else {
         return;
     };
 
@@ -69,7 +69,7 @@ fn use_seeds(
             continue;
         }
 
-        block_update_writer.send(BlockUpdate::Replace {
+        block_update_writer.write(BlockUpdate::Replace {
             position: *block_position + IVec3::Y,
             block_id: Blocks::get().get_id("wheat_0"),
             block_state: None,
