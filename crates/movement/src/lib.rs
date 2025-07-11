@@ -40,6 +40,7 @@ enum GameMode {
     #[default]
     Survival,
     Creative,
+    Spectator,
 }
 
 impl fmc::Plugin for MovementPlugin {
@@ -79,6 +80,10 @@ impl fmc::Plugin for MovementPlugin {
                     self.is_flying = false;
                 }
                 1 => self.game_mode = GameMode::Creative,
+                2 => {
+                    self.game_mode = GameMode::Spectator;
+                    self.is_flying = true;
+                }
                 _ => (),
             },
         }
@@ -262,14 +267,16 @@ impl MovementPlugin {
                             continue;
                         };
 
-                        self.resolve_conflict(
-                            &mut move_back,
-                            &mut friction,
-                            &surface_friction,
-                            velocity,
-                            overlap,
-                            delta_time,
-                        );
+                        if self.game_mode != GameMode::Spectator {
+                            self.resolve_conflict(
+                                &mut move_back,
+                                &mut friction,
+                                &surface_friction,
+                                velocity,
+                                overlap,
+                                delta_time,
+                            );
+                        }
                     }
                 }
             }
@@ -296,14 +303,16 @@ impl MovementPlugin {
                     continue;
                 };
 
-                self.resolve_conflict(
-                    &mut move_back,
-                    &mut friction,
-                    &model_friction,
-                    velocity,
-                    overlap,
-                    delta_time,
-                );
+                if self.game_mode != GameMode::Spectator {
+                    self.resolve_conflict(
+                        &mut move_back,
+                        &mut friction,
+                        &model_friction,
+                        velocity,
+                        overlap,
+                        delta_time,
+                    );
+                }
             }
         }
 

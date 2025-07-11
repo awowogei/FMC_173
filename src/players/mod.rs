@@ -65,6 +65,7 @@ impl Plugin for PlayerPlugin {
 pub enum GameMode {
     Survival,
     Creative,
+    Spectator,
 }
 
 #[derive(Component, Serialize, Deserialize, Deref, DerefMut, Clone)]
@@ -419,6 +420,12 @@ fn on_gamemode_update(
                 health_visibility.set_visible("health".to_owned());
                 net.send_one(player_entity, health_visibility);
 
+                let hotbar_visibility = messages::InterfaceVisibilityUpdate {
+                    interface_path: "hotbar".to_owned(),
+                    visible: true,
+                };
+                net.send_one(player_entity, hotbar_visibility);
+
                 net.send_one(
                     player_entity,
                     messages::PluginData {
@@ -443,6 +450,12 @@ fn on_gamemode_update(
                 health_visibility.set_hidden("health".to_owned());
                 net.send_one(player_entity, health_visibility);
 
+                let hotbar_visibility = messages::InterfaceVisibilityUpdate {
+                    interface_path: "hotbar".to_owned(),
+                    visible: true,
+                };
+                net.send_one(player_entity, hotbar_visibility);
+
                 net.send_one(
                     player_entity,
                     messages::PluginData {
@@ -458,6 +471,35 @@ fn on_gamemode_update(
                         name: "game_mode".to_owned(),
                         // Creative button index
                         selected: 1,
+                    },
+                );
+            }
+            GameMode::Spectator => {
+                let mut health_visibility = messages::InterfaceNodeVisibilityUpdate::default();
+                health_visibility.set_hidden("health".to_owned());
+                net.send_one(player_entity, health_visibility);
+
+                let hotbar_visibility = messages::InterfaceVisibilityUpdate {
+                    interface_path: "hotbar".to_owned(),
+                    visible: true,
+                };
+                net.send_one(player_entity, hotbar_visibility);
+
+                net.send_one(
+                    player_entity,
+                    messages::PluginData {
+                        plugin: "movement".to_owned(),
+                        data: bincode::serialize(&movement::MovementPluginPacket::GameMode(2))
+                            .unwrap(),
+                    },
+                );
+
+                net.send_one(
+                    player_entity,
+                    messages::GuiSetting::ButtonSelection {
+                        name: "game_mode".to_owned(),
+                        // Spectator button index
+                        selected: 2,
                     },
                 );
             }
@@ -513,6 +555,8 @@ fn handle_gui_settings(
                         *game_mode = GameMode::Survival
                     } else if *selected == 1 {
                         *game_mode = GameMode::Creative
+                    } else if *selected == 2 {
+                        *game_mode = GameMode::Spectator
                     }
                 }
                 _ => (),
