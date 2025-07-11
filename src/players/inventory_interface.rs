@@ -110,14 +110,6 @@ fn initialize_interface(
         }
 
         net.send_one(player_entity, crafting_items_boxes);
-
-        net.send_one(
-            player_entity,
-            messages::InterfaceVisibilityUpdate {
-                interface_path: "hotbar".to_owned(),
-                visible: true,
-            },
-        );
     }
 }
 

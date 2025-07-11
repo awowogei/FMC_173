@@ -5,12 +5,14 @@
                 "name": "Game Mode",
                 "entries": [
                     "Survival",
-                    "Creative"
+                    "Creative",
+                    "Spectator"
                 ],
                 "selected": 0,
                 "images": [
                     "textures/interfaces/heart.png",
-                    "textures/items/iron_pickaxe.png"
+                    "textures/items/iron_pickaxe.png",
+                    "textures/interfaces/spectator.png"
                 ]
             }
         },
