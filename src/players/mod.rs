@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use fmc::{
-    bevy::math::{DQuat, DVec3},
+    bevy::{
+        ecs::query::QueryData,
+        math::{DQuat, DVec3},
+    },
     blocks::{BlockPosition, Blocks},
     database::Database,
     interfaces::{
@@ -23,6 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     items::{crafting::CraftingGrid, DroppedItem},
+    settings::Settings,
     world::WorldProperties,
 };
 
@@ -57,12 +61,18 @@ impl Plugin for PlayerPlugin {
             )
             // Save player after all remaining events have been handled. Avoid dupes and other
             // unexpected behaviour.
-            .add_systems(PostUpdate, save_player_data);
+            .add_systems(PostUpdate, save_player_data_on_disconnect)
+            .add_systems(
+                Last,
+                save_player_data_on_shutdown.run_if(on_event::<AppExit>),
+            );
     }
 }
 
-#[derive(Component, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
 pub enum GameMode {
+    #[default]
     Survival,
     Creative,
     Spectator,
@@ -120,7 +130,16 @@ pub struct PlayerBundle {
     pub equipment: Equipment,
     pub crafting_table: CraftingGrid,
     pub health_bundle: HealthBundle,
-    pub gamemode: GameMode,
+    pub game_mode: GameMode,
+}
+
+impl PlayerBundle {
+    fn new(game_mode: GameMode) -> Self {
+        Self {
+            game_mode,
+            ..default()
+        }
+    }
 }
 
 impl Default for PlayerBundle {
@@ -133,7 +152,7 @@ impl Default for PlayerBundle {
             equipment: Equipment::default(),
             crafting_table: CraftingGrid::with_size(4),
             health_bundle: HealthBundle::default(),
-            gamemode: GameMode::Survival,
+            game_mode: GameMode::default(),
         }
     }
 }
@@ -150,7 +169,7 @@ impl From<PlayerSave> for PlayerBundle {
             inventory: save.inventory,
             equipment: save.equipment,
             health_bundle: HealthBundle::from_health(save.health),
-            gamemode: save.game_mode,
+            game_mode: save.game_mode,
             ..default()
         }
     }
@@ -208,6 +227,7 @@ impl PlayerSave {
 fn add_players(
     mut commands: Commands,
     net: Res<Server>,
+    settings: Res<Settings>,
     database: Res<Database>,
     models: Res<Models>,
     mut respawn_events: EventWriter<RespawnEvent>,
@@ -219,7 +239,7 @@ fn add_players(
             PlayerBundle::from(save)
         } else {
             respawn_events.write(RespawnEvent { player_entity });
-            PlayerBundle::default()
+            PlayerBundle::new(settings.game_mode)
         };
 
         net.send_one(
@@ -275,40 +295,60 @@ fn add_players(
     }
 }
 
-fn save_player_data(
+#[derive(QueryData)]
+struct PlayerQuery {
+    player: &'static Player,
+    transform: &'static Transform,
+    camera: &'static Camera,
+    inventory: &'static Inventory,
+    equipment: &'static Equipment,
+    health: &'static Health,
+    game_mode: &'static GameMode,
+}
+
+fn save_player_data_on_disconnect(
     database: Res<Database>,
     mut network_events: EventReader<NetworkEvent>,
-    mut players: Query<(
-        &Player,
-        &Transform,
-        &Camera,
-        &Inventory,
-        &Equipment,
-        &Health,
-        &GameMode,
-    )>,
+    mut players: Query<PlayerQuery>,
 ) {
     for network_event in network_events.read() {
         let NetworkEvent::Disconnected { entity } = network_event else {
             continue;
         };
 
-        let Ok((player, transform, camera, inventory, equipment, health, game_mode)) =
-            players.get_mut(*entity)
-        else {
+        let Ok(player_query) = players.get_mut(*entity) else {
             continue;
         };
 
         PlayerSave {
-            position: transform.translation,
-            camera_position: camera.translation,
-            camera_rotation: camera.rotation,
-            inventory: inventory.clone(),
-            equipment: equipment.clone(),
-            health: health.clone(),
-            game_mode: *game_mode,
+            position: player_query.transform.translation,
+            camera_position: player_query.camera.translation,
+            camera_rotation: player_query.camera.rotation,
+            inventory: player_query.inventory.clone(),
+            equipment: player_query.equipment.clone(),
+            health: player_query.health.clone(),
+            game_mode: *player_query.game_mode,
         }
-        .save(&player.username, &database);
+        .save(&player_query.player.username, &database);
+    }
+}
+
+fn save_player_data_on_shutdown(
+    database: Res<Database>,
+    mut network_events: EventReader<NetworkEvent>,
+    mut players: Query<PlayerQuery>,
+) {
+    for player_query in players.iter() {
+        PlayerSave {
+            position: player_query.transform.translation,
+            camera_position: player_query.camera.translation,
+            camera_rotation: player_query.camera.rotation,
+            inventory: player_query.inventory.clone(),
+            equipment: player_query.equipment.clone(),
+            health: player_query.health.clone(),
+            game_mode: *player_query.game_mode,
+        }
+        .save(&player_query.player.username, &database);
     }
 }
 

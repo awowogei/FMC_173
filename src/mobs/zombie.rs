@@ -138,7 +138,7 @@ fn spawn_zombies(
         // first because it will just fill the left 32 bits with junk. World seed is used to change
         // which chunks are next to each other.
         let seed = ((spawn_event.position.x as u64) << 32 | spawn_event.position.z as u32 as u64)
-            .overflowing_mul(settings.seed)
+            .overflowing_mul(settings.seed())
             .0;
         let mut rng = Rng::new(seed);
         if rng.next_u32() % 10 != 0 {

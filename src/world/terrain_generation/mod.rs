@@ -3,6 +3,7 @@ use fmc::{
     noise::{Frequency, Noise},
     // noise::Noise,
     prelude::*,
+    utils::Rng,
     world::{
         chunk::{Chunk, ChunkPosition},
         Surface, TerrainGenerator,
@@ -63,6 +64,8 @@ impl TerrainGenerator for Earth {
 
 impl Earth {
     pub fn new(seed: u64, blocks: &Blocks) -> Self {
+        let mut rng = Rng::new(seed);
+
         let freq = 1.0 / 2f32.powi(9) * 3.0;
         // let freq = 0.00305;
         let continents = Noise::perlin(Frequency {
@@ -70,7 +73,7 @@ impl Earth {
             y: 0.0,
             z: freq,
         })
-        .seed(seed as u32 + 429340)
+        .seed(rng.next_u32())
         .fbm(4, 0.5, 2.0)
         .abs()
         // This is the "max" height (keep in mind fbm reduces the median amplitude)
@@ -89,7 +92,7 @@ impl Earth {
                 Noise::constant(0.0),
                 // Noise::constant(1.5),
                 Noise::perlin(freq)
-                    .seed(seed as u32)
+                    .seed(rng.next_u32())
                     .fbm(10, 0.5, 2.0)
                     .mul(Noise::constant(2.0))
                     .add(Noise::constant(1.0)),
@@ -103,12 +106,8 @@ impl Earth {
             y: freq * 1.5,
             z: freq,
         };
-        let high = Noise::perlin(freq)
-            .seed(seed as u32 + 1239480234)
-            .fbm(6, 0.5, 2.0);
-        let low = Noise::perlin(freq)
-            .seed(seed as u32 + 2239482)
-            .fbm(6, 0.5, 2.0);
+        let high = Noise::perlin(freq).seed(rng.next_u32()).fbm(6, 0.5, 2.0);
+        let low = Noise::perlin(freq).seed(rng.next_u32()).fbm(6, 0.5, 2.0);
 
         // NOTE: Because of interpolation the noise is stretched. 4x horizontally and 8x
         // vertically.
@@ -121,7 +120,7 @@ impl Earth {
             y: freq.y * 1.5 * 0.5,
             z: freq.z * 1.5,
         })
-        .seed(seed as u32 + 3923480239)
+        .seed(rng.next_u32())
         .fbm(8, 0.5, 2.0)
         .range(0.00, 0.02, low, high);
         // let terrain_shape = high;

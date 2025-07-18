@@ -20,9 +20,10 @@ impl PluginGroup for DefaultPlugins {
     fn build(self) -> fmc::bevy::app::PluginGroupBuilder {
         let group = PluginGroupBuilder::start::<Self>();
         group
-            .add(settings::SettingsPlugin)
+            // This must run first so all the expected assets are present
             .add(assets::ExtractBundledAssetsPlugin)
             .add_group(fmc::DefaultPlugins)
+            .add(settings::SettingsPlugin)
             .add(items::ItemPlugin)
             .add(players::PlayerPlugin)
             .add(world::WorldPlugin)

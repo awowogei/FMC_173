@@ -33,7 +33,7 @@ fn setup(
     commands.insert_resource(properties);
 
     commands.insert_resource(WorldMap::new(terrain_generation::Earth::new(
-        settings.seed,
+        settings.seed(),
         &blocks,
     )));
 }
