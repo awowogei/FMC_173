@@ -1,4 +1,4 @@
-use fmc::prelude::*;
+use fmc::{prelude::*, terminal::Cli};
 
 /// Extracts the bundled assets to the "assets" directory
 pub struct ExtractBundledAssetsPlugin;
@@ -34,11 +34,8 @@ impl Plugin for ExtractBundledAssetsPlugin {
             }
         }
 
-        if std::env::args()
-            .nth(1)
-            .is_some_and(|arg| arg == "--extract-assets")
-        {
+        if Cli::extract_assets() {
             std::process::exit(0);
-        };
+        }
     }
 }
