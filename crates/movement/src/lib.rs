@@ -49,7 +49,11 @@ impl fmc::Plugin for MovementPlugin {
         self.last_jump += self.delta_time;
         self.last_spacebar += self.delta_time;
         self.accelerate();
-        self.simulate_physics();
+        if self.game_mode == GameMode::Spectator {
+            self.free_move();
+        } else {
+            self.simulate_physics();
+        }
     }
 
     fn handle_server_data(&mut self, data: Vec<u8>) {
@@ -195,6 +199,25 @@ impl MovementPlugin {
         self.acceleration = acceleration;
     }
 
+    fn free_move(&mut self) {
+        let player_transform = fmc::get_player_transform();
+        let delta_time = Vec3::splat(self.delta_time);
+
+        self.velocity += self.acceleration * delta_time;
+        let new_position = player_transform.translation + self.velocity * delta_time;
+
+        if player_transform.translation != new_position {
+            fmc::set_player_transform(Transform {
+                translation: new_position,
+                rotation: DQuat::IDENTITY,
+                scale: Vec3::ONE,
+            });
+        }
+
+        let friction: f32 = 0.9;
+        self.velocity = self.velocity * (1.0 - friction).powf(4.0).powf(self.delta_time);
+    }
+
     // TODO: This tunnels if you move faster than maybe a few blocks a second
     fn simulate_physics(&mut self) {
         let player_transform = fmc::get_player_transform();
@@ -267,16 +290,14 @@ impl MovementPlugin {
                             continue;
                         };
 
-                        if self.game_mode != GameMode::Spectator {
-                            self.resolve_conflict(
-                                &mut move_back,
-                                &mut friction,
-                                &surface_friction,
-                                velocity,
-                                overlap,
-                                delta_time,
-                            );
-                        }
+                        self.resolve_conflict(
+                            &mut move_back,
+                            &mut friction,
+                            &surface_friction,
+                            velocity,
+                            overlap,
+                            delta_time,
+                        );
                     }
                 }
             }
@@ -303,16 +324,14 @@ impl MovementPlugin {
                     continue;
                 };
 
-                if self.game_mode != GameMode::Spectator {
-                    self.resolve_conflict(
-                        &mut move_back,
-                        &mut friction,
-                        &model_friction,
-                        velocity,
-                        overlap,
-                        delta_time,
-                    );
-                }
+                self.resolve_conflict(
+                    &mut move_back,
+                    &mut friction,
+                    &model_friction,
+                    velocity,
+                    overlap,
+                    delta_time,
+                );
             }
         }
 
