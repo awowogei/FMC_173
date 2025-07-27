@@ -254,13 +254,13 @@ impl Earth {
                 let mut liquid = false;
 
                 // Find how deep we are from above chunk.
-                for y in Chunk::SIZE..CHUNK_HEIGHT {
+                for y in (Chunk::SIZE..CHUNK_HEIGHT).rev() {
                     let block_height = chunk_position.y + y as i32;
                     let block_index = x * (Chunk::SIZE * CHUNK_HEIGHT) + z * CHUNK_HEIGHT + y;
                     let density = terrain_shape[block_index];
 
                     if density <= 0.0 {
-                        if block_height == 0 && continent_height < 5.0 {
+                        if block_height == 0 && continent_height < CONTINTENT_MAX {
                             liquid = true;
                         }
                         layer = 0;
@@ -277,7 +277,7 @@ impl Earth {
                     let density = terrain_shape[block_index];
 
                     let block = if density <= 0.0 {
-                        if block_height == 0 && continent_height < 5.0 {
+                        if block_height == 0 && continent_height < CONTINTENT_MAX {
                             layer = 1;
                             liquid = true;
                             biome.surface_liquid
@@ -352,7 +352,8 @@ impl Earth {
                     cave_density += density_offset;
 
                     if cave_density < threshold
-                        && (continent_height > 8.0 || height < CONTINTENT_MIN as i32 - 10)
+                        && (continent_height == CONTINTENT_MAX
+                            || height < CONTINTENT_MIN as i32 - 10)
                     {
                         terrain[index] = -1.0;
                     }
