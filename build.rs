@@ -15,24 +15,14 @@ fn main() {
         return;
     }
 
-    let mut asset_paths = HashMap::new();
-    for asset_path in get_asset_paths() {
-        for asset in walk_dir(asset_path.join("assets/client")) {
-            let relative_asset_path = asset.strip_prefix(&asset_path).unwrap().to_path_buf();
-            asset_paths.insert(relative_asset_path, asset);
-        }
-
-        for asset in walk_dir(asset_path.join("assets/server")) {
-            let relative_asset_path = asset.strip_prefix(&asset_path).unwrap().to_path_buf();
-            asset_paths.insert(relative_asset_path, asset);
-        }
-    }
-
     let mut archive = tar::Builder::new(Vec::new());
-    for (relative_path, absolute_path) in asset_paths {
+    for asset_path in get_asset_paths() {
         archive
-            .append_path_with_name(absolute_path, relative_path)
-            .unwrap();
+            .append_dir_all("assets/client", asset_path.join("assets/client"))
+            .ok();
+        archive
+            .append_dir_all("assets/server", asset_path.join("assets/server"))
+            .ok();
     }
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
