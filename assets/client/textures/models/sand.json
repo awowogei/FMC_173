@@ -5,6 +5,7 @@
         "left": "sand.png",
         "right": "sand.png",
         "front": "sand.png",
-        "back": "sand.png"
+        "back": "sand.png",
+        "material": "opaque_block"
     }
 }

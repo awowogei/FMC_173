@@ -5,6 +5,7 @@
         "left": "coal_ore.png",
         "right": "coal_ore.png",
         "front": "coal_ore.png",
-        "back": "coal_ore.png"
+        "back": "coal_ore.png",
+        "material": "opaque_block"
     }
 }

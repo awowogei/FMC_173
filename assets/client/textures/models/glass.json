@@ -5,6 +5,7 @@
         "left": "glass.png",
         "right": "glass.png",
         "front": "glass.png",
-        "back": "glass.png"
+        "back": "glass.png",
+        "material": "transparent_block"
     }
 }

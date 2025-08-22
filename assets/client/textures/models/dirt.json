@@ -5,6 +5,7 @@
         "left": "dirt.png",
         "right": "dirt.png",
         "front": "dirt.png",
-        "back": "dirt.png"
+        "back": "dirt.png",
+        "material": "opaque_block"
     }
 }

@@ -5,6 +5,7 @@
         "left": "oak_planks.png",
         "right": "oak_planks.png",
         "front": "oak_planks.png",
-        "back": "oak_planks.png"
+        "back": "oak_planks.png",
+        "material": "opaque_block"
     }
 }

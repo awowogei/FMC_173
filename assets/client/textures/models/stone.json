@@ -5,6 +5,7 @@
         "left": "stone.png",
         "right": "stone.png",
         "front": "stone.png",
-        "back": "stone.png"
+        "back": "stone.png",
+        "material": "opaque_block"
     }
 }

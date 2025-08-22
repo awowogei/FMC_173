@@ -5,6 +5,7 @@
         "left": "furnace_side.png",
         "right": "furnace_side.png",
         "front": "furnace_front.png",
-        "back": "furnace_side.png"
+        "back": "furnace_side.png",
+        "material": "opaque_block"
     }
 }

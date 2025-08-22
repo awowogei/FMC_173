@@ -5,6 +5,7 @@
         "left": "sandstone.png",
         "right": "sandstone.png",
         "front": "sandstone.png",
-        "back": "sandstone.png"
+        "back": "sandstone.png",
+        "material": "opaque_block"
     }
 }
