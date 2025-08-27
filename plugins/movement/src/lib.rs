@@ -370,7 +370,18 @@ impl MovementPlugin {
             & backwards_time.cmpgt(Vec3::splat(0.0));
         let resolution_axis = Vec3::select(valid_axes, backwards_time, Vec3::NAN).max_element();
 
-        if resolution_axis == backwards_time.y {
+        if self.is_grounded.y && overlap.y < 0.51 {
+            // This let's the player step up short distances when moving horizontally
+            move_back.y = move_back.y.max(0.05_f32.min(overlap.y + overlap.y / 100.0));
+            self.is_grounded.y = true;
+            self.velocity.y = 0.0;
+
+            if velocity.y.is_sign_positive() {
+                *friction = friction.max(Vec3::splat(surface_friction.bottom));
+            } else {
+                *friction = friction.max(Vec3::splat(surface_friction.top));
+            }
+        } else if resolution_axis == backwards_time.y {
             move_back.y = overlap.y + overlap.y / 100.0;
             self.is_grounded.y = true;
             self.velocity.y = 0.0;
