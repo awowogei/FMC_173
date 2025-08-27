@@ -1,7 +1,7 @@
 [package]
 name = "fmc_173"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/awowogei/fmc_173"
 description = "fmc 173"
