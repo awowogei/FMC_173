@@ -3,9 +3,9 @@
         "collection_name": "smelting",
         "pattern_type": "shaped",
         "pattern": [
-            [["dirt", 1]]
+            [["cobblestone", 1]]
         ],
-        "output_item": "bread",
+        "output_item": "stone",
         "output_amount": 1
     }
 ]
