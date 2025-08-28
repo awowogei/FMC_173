@@ -38,6 +38,7 @@
             "wood_4.ogg"
         ]
     },
+    "particle_texture": "blocks/oak_planks.png",
     "quads": [
         {
             "vertices": [

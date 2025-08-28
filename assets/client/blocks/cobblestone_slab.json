@@ -39,6 +39,7 @@
             "stone_4.ogg"
         ]
     },
+    "particle_texture": "blocks/cobblestone.png",
     "quads": [
         {
             "vertices": [
