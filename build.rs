@@ -33,27 +33,6 @@ fn main() {
     std::fs::write(dest_path, compressed).unwrap();
 }
 
-fn walk_dir<P: AsRef<std::path::Path>>(dir: P) -> Vec<std::path::PathBuf> {
-    let mut files = Vec::new();
-
-    let Ok(directory) = std::fs::read_dir(&dir) else {
-        return files;
-    };
-
-    for entry in directory {
-        let file_path = entry.unwrap().path();
-
-        if file_path.is_dir() {
-            let sub_files = walk_dir(&file_path);
-            files.extend(sub_files);
-        } else {
-            files.push(file_path);
-        }
-    }
-
-    files
-}
-
 fn get_asset_paths() -> Vec<PathBuf> {
     // Find the directory where the manifest of the binary being built is.
     // The CARGO_MANIFEST_* vars cannot be used because they lead to this package and not the

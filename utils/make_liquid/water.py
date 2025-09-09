@@ -104,7 +104,7 @@ def make_block(name, top_quad, top_texture, rotate_texture, is_rotatable, cull_t
         "type": "cube",
         "name": name,
         "material": material_name,
-        "drag": friction,
+        "friction": friction,
         "light_attenuation": light_attenuation,
         "fog": fog,
         "replaceable": True,

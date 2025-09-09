@@ -1,7 +1,7 @@
 {
     "type": "cube",
     "material": "block",
-    "drag": [ 0.90, 0.02, 0.90 ],
+    "friction": [ 0.90, 0.02, 0.90 ],
     "interactable": false,
     "fog": {
         "color": {

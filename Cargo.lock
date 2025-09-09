@@ -1765,7 +1765,6 @@ dependencies = [
  "fmc_noise",
  "fmc_protocol",
  "gltf",
- "indexmap",
  "once_cell",
  "rand",
  "rusqlite",

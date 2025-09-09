@@ -8,7 +8,7 @@ use fmc::{
     physics::{Buoyancy, Collider, Physics},
     players::Player,
     prelude::*,
-    world::{chunk::ChunkPosition, WorldMap},
+    world::{WorldMap, chunk::ChunkPosition},
 };
 use rand::Rng;
 
@@ -53,7 +53,7 @@ fn spawn_duck(
     if !world_map.contains_chunk(&ChunkPosition::new(64, 0, 16)) {
         return;
     }
-    let duck_model = models.get_by_name("duck");
+    let duck_model = models.get_config_by_name("duck").unwrap();
 
     let mut animations = AnimationPlayer::default();
     animations.set_move_animation(Some(duck_model.animations["walk"]));
@@ -63,7 +63,7 @@ fn spawn_duck(
         Model::Asset(duck_model.id),
         animations,
         Transform::from_xyz(67.0, 7.0, 24.0),
-        Collider::Aabb(duck_model.aabb.clone()),
+        duck_model.collider.clone(),
         Physics {
             buoyancy: Some(Buoyancy {
                 density: 0.3,

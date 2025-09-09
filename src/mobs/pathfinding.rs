@@ -6,7 +6,7 @@ use fmc::{
     prelude::*,
     world::WorldMap,
 };
-use indexmap::{map::Entry, IndexMap};
+use indexmap::{IndexMap, map::Entry};
 
 #[derive(Component)]
 pub struct PathFinder {
@@ -157,7 +157,7 @@ impl PathFinder {
             if block_config.is_solid() {
                 f32::INFINITY
             } else {
-                block_config.drag.max_element() as f32
+                block_config.drag().max_element() as f32
             }
         } else {
             f32::INFINITY

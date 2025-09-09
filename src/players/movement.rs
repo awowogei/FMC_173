@@ -1,32 +1,158 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    models::{Model, ModelMap, ModelSystems},
+    blocks::{BlockPosition, Blocks, Friction},
+    models::{Model, ModelMap, ModelSystems, Models},
     networking::Server,
+    physics::{Collider, shapes::Aabb},
     players::Player,
     prelude::*,
     protocol::messages,
     world::{
-        chunk::{Chunk, ChunkPosition},
         ChangedBlockEvent, ChunkLoadEvent, ChunkOrigin, ChunkSubscriptions, WorldMap,
+        chunk::{Chunk, ChunkPosition},
     },
 };
+
 use serde::Serialize;
 
 pub(super) struct MovementPlugin;
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Last, send_block_models.after(ModelSystems));
+        app.add_systems(Update, send_setup)
+            .add_systems(Last, send_block_models.after(ModelSystems));
     }
 }
 
 #[derive(Serialize)]
 pub enum MovementPluginPacket<'a> {
+    Setup {
+        blocks: Vec<CollisionConfig>,
+        models: Vec<CollisionConfig>,
+    },
     /// Changes the player's velocity
     Velocity(Vec3),
     /// Notifies the plugin of which models it should collide with.
     Models(&'a Vec<u32>),
     /// Changes the game mode
     GameMode(u32),
+}
+
+#[derive(Serialize)]
+pub struct CollisionConfig {
+    collider: Vec3Collider,
+    friction: Vec3Friction,
+    climbable: bool,
+}
+
+#[derive(Serialize)]
+enum Vec3Collider {
+    Single(Vec3Aabb),
+    Multi(Vec<Vec3Aabb>),
+}
+
+impl From<&Collider> for Vec3Collider {
+    fn from(collider: &Collider) -> Self {
+        match collider {
+            Collider::Single(aabb) => Vec3Collider::Single(aabb.into()),
+            Collider::Multi(aabbs) => {
+                Vec3Collider::Multi(aabbs.iter().map(|aabb| aabb.into()).collect())
+            }
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct Vec3Aabb {
+    center: Vec3,
+    half_extents: Vec3,
+}
+
+impl From<&Aabb> for Vec3Aabb {
+    fn from(aabb: &Aabb) -> Self {
+        Vec3Aabb {
+            center: aabb.center.as_vec3(),
+            half_extents: aabb.half_extents.as_vec3(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+enum Vec3Friction {
+    Surface {
+        front: f32,
+        back: f32,
+        right: f32,
+        left: f32,
+        top: f32,
+        bottom: f32,
+    },
+    Drag(Vec3),
+}
+
+impl From<&Friction> for Vec3Friction {
+    fn from(friction: &Friction) -> Self {
+        match friction {
+            Friction::Surface {
+                front,
+                back,
+                right,
+                left,
+                top,
+                bottom,
+            } => Vec3Friction::Surface {
+                front: *front as f32,
+                back: *back as f32,
+                right: *right as f32,
+                left: *left as f32,
+                top: *top as f32,
+                bottom: *bottom as f32,
+            },
+            Friction::Drag(drag) => Vec3Friction::Drag(drag.as_vec3()),
+        }
+    }
+}
+
+fn send_setup(net: Res<Server>, models: Res<Models>, new_players: Query<Entity, Added<Player>>) {
+    for player_entity in new_players.iter() {
+        // TODO: These can be pre-computed
+        let block_collision_configs = Blocks::get()
+            .configs()
+            .iter()
+            .map(|config| CollisionConfig {
+                collider: Vec3Collider::from(&config.collider),
+                friction: Vec3Friction::from(&config.friction),
+                climbable: &config.name == "ladder",
+            })
+            .collect();
+
+        let model_collision_configs = models
+            .configs()
+            .iter()
+            .map(|config| CollisionConfig {
+                collider: Vec3Collider::from(&config.collider),
+                friction: Vec3Friction::Surface {
+                    top: 0.99,
+                    bottom: 0.0,
+                    left: 0.0,
+                    right: 0.0,
+                    front: 0.0,
+                    back: 0.0,
+                },
+                climbable: false,
+            })
+            .collect();
+
+        net.send_one(
+            player_entity,
+            messages::PluginData {
+                plugin: "movement".to_owned(),
+                data: bincode::serialize(&MovementPluginPacket::Setup {
+                    blocks: block_collision_configs,
+                    models: model_collision_configs,
+                })
+                .unwrap(),
+            },
+        );
+    }
 }
 
 fn send_block_models(
@@ -52,7 +178,7 @@ fn send_block_models(
                     let block_id = world_map.get_block(*block_position).unwrap();
                     let block_config = Blocks::get().get_config(&block_id);
 
-                    if block_config.friction.is_some() {
+                    if block_config.is_solid() {
                         nearby_models.push(model_entity.index());
                     }
                 }

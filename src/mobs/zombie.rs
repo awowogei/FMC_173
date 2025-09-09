@@ -9,7 +9,7 @@ use fmc::{
     players::{Camera, Player},
     prelude::*,
     utils::Rng,
-    world::{chunk::Chunk, WorldMap},
+    world::{WorldMap, chunk::Chunk},
 };
 
 use crate::{
@@ -19,8 +19,8 @@ use crate::{
 };
 
 use super::{
-    pathfinding::PathFinder, Health, Mob, MobDespawnEvent, MobRandomSound, MobSounds,
-    MobSpawnEvent, SoundCollection,
+    Health, Mob, MobDespawnEvent, MobRandomSound, MobSounds, MobSpawnEvent, SoundCollection,
+    pathfinding::PathFinder,
 };
 
 pub struct ZombiePlugin;
@@ -163,7 +163,7 @@ fn spawn_zombies(
             let spawn_position = BlockPosition::from(spawn_event.position)
                 + BlockPosition::new(x as i32, y as i32, z as i32);
 
-            let zombie_model = models.get_by_name("zombie");
+            let zombie_model = models.get_config_by_name("zombie").unwrap();
 
             let mut animations = AnimationPlayer::default();
             animations.set_move_animation(Some(zombie_model.animations["wander"]));
@@ -274,7 +274,7 @@ fn hunt_player(
             }
         }
 
-        let zombie_model = models.get_by_name("zombie");
+        let zombie_model = models.get_config_by_name("zombie").unwrap();
 
         let Ok((_, game_mode, player_transform, _)) = players.get(zombie.target.unwrap()) else {
             // Player might disconnect

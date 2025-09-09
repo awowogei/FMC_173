@@ -8,7 +8,7 @@ use fmc::{
     prelude::*,
     protocol::messages,
     utils::Rng,
-    world::{chunk::ChunkPosition, ChunkSubscriptions},
+    world::{ChunkSubscriptions, chunk::ChunkPosition},
 };
 
 use crate::players::{Health, Inventory};
@@ -62,9 +62,9 @@ fn spawn_model(
     for (entity, dropped_item, maybe_physics, mut transform) in dropped_items.iter_mut() {
         let item_id = dropped_item.stack.item().unwrap().id;
         let item_config = items.get_config(&item_id);
-        let model_config = models.get_by_id(item_config.model_id);
+        let model_config = models.get_config(&item_config.model_id);
 
-        let mut aabb = model_config.aabb.clone();
+        let mut aabb = model_config.collider.as_aabb();
 
         // There are two scales, one scales the model to have a volume and the other scales
         // it to be some height. We choose whatever makes it smaller.
@@ -89,7 +89,7 @@ fn spawn_model(
         entity_commands.insert((
             Model::Asset(item_config.model_id),
             animation_player,
-            Collider::Aabb(aabb),
+            Collider::Single(aabb),
         ));
 
         if maybe_physics.is_none() {

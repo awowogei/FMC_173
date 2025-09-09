@@ -2,16 +2,16 @@ use std::collections::{HashMap, HashSet};
 
 use fmc::{
     bevy::math::DVec3,
-    blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, Blocks},
+    blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
     items::{ItemStack, Items},
     models::{AnimationPlayer, Model, ModelConfig, ModelMap, ModelVisibility, Models},
     networking::{NetworkMessage, Server},
-    physics::{shapes::Aabb, Collider},
+    physics::{Collider, shapes::Aabb},
     players::{Camera, Player, Target, Targets},
     prelude::*,
     protocol::messages,
     utils::Rng,
-    world::{chunk::ChunkPosition, BlockUpdate, ChunkSubscriptions, WorldMap},
+    world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 
 use crate::{
@@ -86,7 +86,7 @@ fn handle_left_clicks(
 
         let camera_position = transform.translation() + camera.translation;
 
-        let model = models.get_by_name("player");
+        let model = models.get_config_by_name("player").unwrap();
         let animation = animation_player.play(model.animations["hit"]);
 
         let mut first_click = false;
@@ -482,7 +482,7 @@ fn break_particles(
 
 fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, Vec3) {
     if let Some(model_id) = block_config.model {
-        let model = models.get_by_id(model_id);
+        let model = models.get_config(&model_id);
         let mut mesh_vertices = Vec::new();
         let mut mesh_uvs = Vec::new();
         let mut mesh_normals = Vec::new();
@@ -573,7 +573,6 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
                 material_alpha_mode: 2,
                 material_alpha_cutoff: 0.0,
                 material_double_sided: false,
-                collider: None,
             },
             Vec3::ZERO,
         )
@@ -653,7 +652,6 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
                 material_alpha_mode: 2,
                 material_alpha_cutoff: 0.0,
                 material_double_sided: false,
-                collider: None,
             },
             Vec3::splat(0.5),
         )
@@ -747,7 +745,6 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
                 material_alpha_mode: 2,
                 material_alpha_cutoff: 0.0,
                 material_double_sided: false,
-                collider: None,
             },
             Vec3::splat(0.5),
         )
@@ -831,19 +828,32 @@ fn handle_right_clicks(
                         let block_config = blocks.get_config(&block_id);
                         let block_state = block_config.placement_rotation(*block_face, camera);
 
-                        let replaced_collider = Collider::Aabb(Aabb {
-                            center: replaced_block_position.as_dvec3(),
-                            half_extents: DVec3::splat(0.5),
-                        });
-
-                        // Check that there aren't any entities in the way of the new block
                         let chunk_position = ChunkPosition::from(replaced_block_position);
-                        if let Some(entities) = model_map.get_entities(&chunk_position) {
-                            for (collider, global_transform) in model_query.iter_many(entities) {
-                                let collider =
-                                    collider.transform(&global_transform.compute_transform());
 
-                                if collider.intersection(&replaced_collider).is_some() {
+                        let rotation = block_state
+                            .map(BlockState::rotation)
+                            .flatten()
+                            .map(BlockRotation::as_quat)
+                            .unwrap_or_default();
+
+                        let replaced_block_transform = Transform {
+                            translation: block_position.as_dvec3() + DVec3::splat(0.5),
+                            rotation,
+                            ..default()
+                        };
+
+                        if let Some(entities) = model_map.get_entities(&chunk_position) {
+                            for (model_collider, global_transform) in
+                                model_query.iter_many(entities)
+                            {
+                                if model_collider
+                                    .intersection(
+                                        &global_transform.compute_transform(),
+                                        &replaced_block_transform,
+                                        &block_config.collider,
+                                    )
+                                    .is_some()
+                                {
                                     continue;
                                 }
                             }

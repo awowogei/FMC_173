@@ -18,14 +18,14 @@ use fmc::{
     prelude::*,
     protocol::messages,
     world::{
-        chunk::{Chunk, ChunkPosition},
         WorldMap,
+        chunk::{Chunk, ChunkPosition},
     },
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    items::{crafting::CraftingGrid, DroppedItem},
+    items::{DroppedItem, crafting::CraftingGrid},
     settings::Settings,
     world::WorldProperties,
 };
@@ -268,7 +268,7 @@ fn add_players(
             },
         );
 
-        let model = models.get_by_name("player");
+        let model = models.get_config_by_name("player").unwrap();
 
         let mut animation_player = AnimationPlayer::default();
         animation_player.set_move_animation(Some(model.animations["walk"]));

@@ -4,7 +4,6 @@
     "name": "wheat_7",
     "material": "transparent",
     "hardness": 0,
-    "drag": [ 0.90, 0.02, 0.90 ],
     "drop": {
         "drop": "wheat"
     },

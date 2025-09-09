@@ -2,7 +2,7 @@
     "type": "cube",
     "name": "diagonal_water_corner_down_6",
     "material": "water",
-    "drag": [
+    "friction": [
         0.8,
         0.5,
         0.8
