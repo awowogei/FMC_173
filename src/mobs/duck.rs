@@ -8,9 +8,9 @@ use fmc::{
     physics::{Buoyancy, Collider, Physics},
     players::Player,
     prelude::*,
+    random::{Rng, UniformDistribution},
     world::{WorldMap, chunk::ChunkPosition},
 };
-use rand::Rng;
 
 use crate::players::{HandInteractions, Inventory};
 
@@ -132,6 +132,7 @@ fn wander(
     world_map: Res<WorldMap>,
     time: Res<Time>,
     mut ducks: Query<(&mut Duck, &mut PathFinder, &GlobalTransform)>,
+    mut rng: Local<Rng>,
 ) {
     for (mut duck, mut path_finder, transform) in ducks.iter_mut() {
         duck.wander_timer.tick(time.delta());
@@ -141,8 +142,10 @@ fn wander(
         }
 
         if duck.wander_timer.finished() {
-            duck.wander_timer =
-                Timer::from_seconds(rand::thread_rng().gen_range(10.0..=15.0), TimerMode::Once);
+            duck.wander_timer = Timer::from_seconds(
+                UniformDistribution::new(10.0, 15.0).sample(&mut rng),
+                TimerMode::Once,
+            );
         } else {
             continue;
         }
@@ -157,7 +160,7 @@ fn wander(
         potential_blocks.push((start, u32::MIN, 0));
         already_visited.insert(start);
 
-        let max_distance = rand::thread_rng().gen_range(1..=8);
+        let max_distance = UniformDistribution::<u32>::new(1, 8).sample(&mut rng);
 
         let mut index = 0;
         while let Some((block_position, mut score, mut distance)) =

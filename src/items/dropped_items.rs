@@ -7,7 +7,7 @@ use fmc::{
     players::Camera,
     prelude::*,
     protocol::messages,
-    utils::Rng,
+    random::Rng,
     world::{ChunkSubscriptions, chunk::ChunkPosition},
 };
 

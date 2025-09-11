@@ -1758,6 +1758,7 @@ dependencies = [
 [[package]]
 name = "fmc"
 version = "0.0.5"
+source = "git+https://github.com/formulaicgame/fmc#0ea1130dcd1301b5dc12424d46c24520ed81ed17"
 dependencies = [
  "bevy",
  "bincode",
@@ -1783,7 +1784,6 @@ dependencies = [
  "fmc",
  "futures-lite 1.13.0",
  "indexmap",
- "rand",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1817,6 +1817,7 @@ dependencies = [
 [[package]]
 name = "fmc_protocol"
 version = "0.1.3"
+source = "git+https://github.com/formulaicgame/fmc#0ea1130dcd1301b5dc12424d46c24520ed81ed17"
 dependencies = [
  "bevy",
  "fmc_protocol_derive",
@@ -1826,6 +1827,7 @@ dependencies = [
 [[package]]
 name = "fmc_protocol_derive"
 version = "0.1.0"
+source = "git+https://github.com/formulaicgame/fmc#0ea1130dcd1301b5dc12424d46c24520ed81ed17"
 dependencies = [
  "quote",
  "syn 1.0.109",

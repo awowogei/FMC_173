@@ -6,5 +6,11 @@
         "decoration_block": "tall_grass",
         "placed_on": ["grass"],
         "can_replace": ["air"]
+    },
+    "distribution": {
+        "type": "uniform",
+        "min": 0,
+        "max": 100,
+        "probability": 0.75
     }
 }

@@ -8,7 +8,7 @@ use fmc::{
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
-    utils::Rng,
+    random::{Rng, UniformDistribution},
     world::{WorldMap, chunk::Chunk},
 };
 
@@ -337,13 +337,16 @@ fn wander(
         zombie.wander_timer.tick(time.delta());
 
         if zombie.wander_timer.finished() {
-            zombie.wander_timer = Timer::from_seconds(rng.range_f32(15.0..=30.0), TimerMode::Once);
+            zombie.wander_timer = Timer::from_seconds(
+                UniformDistribution::new(15.0, 30.0).sample(&mut rng),
+                TimerMode::Once,
+            );
         } else {
             continue;
         }
 
         let mut already_visited = HashSet::new();
-        let mut potential_blocks = Vec::new();
+        let mut potential_blocks: Vec<(BlockPosition, u32, u32)> = Vec::new();
 
         let blocks = Blocks::get();
         let water_id = blocks.get_id("surface_water");
@@ -352,7 +355,7 @@ fn wander(
         potential_blocks.push((start, u32::MIN, 0));
         already_visited.insert(start);
 
-        let max_distance = rng.range_u32(1..=8);
+        let max_distance = UniformDistribution::<u32>::new(1, 8).sample(&mut rng);
 
         let mut index = 0;
         while let Some((block_position, mut score, mut distance)) =

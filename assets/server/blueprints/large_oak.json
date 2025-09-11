@@ -1,6 +1,12 @@
 {
     "type": "distribution",
     "count": 1,
+    "distribution": {
+        "type": "uniform",
+        "min": 0,
+        "max": 50,
+        "probability": 0.9
+    },
     "blueprint": {
         "type": "tree",
         "trunk_block": "oak",

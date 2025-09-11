@@ -13,8 +13,8 @@ use fmc::{
     players::{Camera, Player},
     prelude::*,
     protocol::messages,
-    utils::Rng,
-    world::{chunk::ChunkPosition, ChunkSimulationEvent, Surface, WorldMap},
+    random::{Rng, UniformDistribution},
+    world::{ChunkSimulationEvent, Surface, WorldMap, chunk::ChunkPosition},
 };
 use serde::{Deserialize, Serialize};
 
@@ -144,7 +144,10 @@ impl Default for MobRandomSound {
 
 impl MobRandomSound {
     fn reset_timer(&mut self) {
-        self.timer = Timer::from_seconds(self.rng.range_f32(6.0..9.0), TimerMode::Once);
+        self.timer = Timer::from_seconds(
+            UniformDistribution::new(6.0, 9.0).sample(&mut self.rng),
+            TimerMode::Once,
+        );
     }
 }
 
@@ -414,7 +417,9 @@ fn play_random_sound(
             let sounds = &mob_sounds.sounds[handle.id].random;
 
             if sounds.is_empty() {
-                warn!("MobRandomSound added to entity, but the SoundHandle attached doesn't have any random sounds registered.");
+                warn!(
+                    "MobRandomSound added to entity, but the SoundHandle attached doesn't have any random sounds registered."
+                );
                 continue;
             }
 

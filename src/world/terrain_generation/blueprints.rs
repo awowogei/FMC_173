@@ -1,14 +1,14 @@
 use fmc::prelude::*;
-use rand::{distributions::Distribution, Rng};
 
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    blocks::{BlockId, BlockPosition, Blocks, BLOCK_CONFIG_PATH},
+    blocks::{BLOCK_CONFIG_PATH, BlockId, BlockPosition, Blocks},
+    random::{Bernoulli, Choose, Rng, UniformDistribution},
     world::{
-        chunk::{Chunk, ChunkPosition},
         Surface, TerrainFeature,
+        chunk::{Chunk, ChunkPosition},
     },
 };
 
@@ -25,16 +25,10 @@ pub enum Blueprint {
     Distribution {
         // The blueprint that should be distributed.
         blueprint: Box<Blueprint>,
-        // TODO: This is just a uniform distribution now. Triangle distributions would be nice, but the
-        // rand crate implements distributions as a trait which makes them difficult to store since
-        // each distribution type has its own struct. Rand is also slow, will probably have to do
-        // some homebrew.
-        //
         // Number of attempts at placing that should be done for each chunk
         count: u32,
-        // If specified it will only distribute between the two height values. If None, it will
-        // snap to the surface. [low_y, high_y]
-        vertical_range: Option<[i32; 2]>,
+        // The type of distribution that should be used
+        distribution: HeightDistribution,
     },
     // A function that generates a feature
     Generator(fn(position: BlockPosition, chunk: &mut Chunk)),
@@ -57,105 +51,103 @@ pub enum Blueprint {
 
 impl Blueprint {
     fn new(
-        json_blueprint: &AmbiguousJsonBlueprint,
-        named_blueprints: &HashMap<String, AmbiguousJsonBlueprint>,
+        json_blueprint: &JsonBlueprint,
+        named_blueprints: &HashMap<String, JsonBlueprint>,
         blocks: &Blocks,
     ) -> Self {
         match json_blueprint {
-            AmbiguousJsonBlueprint::Named(name) => Blueprint::new(
-                named_blueprints.get(name).unwrap(),
-                named_blueprints,
-                blocks,
-            ),
-            AmbiguousJsonBlueprint::Inline(json_blueprint) => match json_blueprint {
-                JsonBlueprint::Collection { blueprints, .. } => {
-                    let mut collection = Vec::with_capacity(blueprints.len());
-                    for sub_blueprint in blueprints {
-                        let sub_blueprint = Blueprint::new(sub_blueprint, named_blueprints, blocks);
-                        collection.push(sub_blueprint);
-                    }
-                    Blueprint::Collection(collection)
+            JsonBlueprint::Collection { blueprints, .. } => {
+                let mut collection = Vec::with_capacity(blueprints.len());
+                for sub_blueprint in blueprints {
+                    let sub_blueprint = Blueprint::new(
+                        sub_blueprint.disambiguate(named_blueprints),
+                        named_blueprints,
+                        blocks,
+                    );
+                    collection.push(sub_blueprint);
                 }
-                JsonBlueprint::Distribution {
-                    blueprint,
-                    count,
-                    vertical_range,
-                } => {
-                    let sub_blueprint = Blueprint::new(blueprint, named_blueprints, blocks);
-                    Blueprint::Distribution {
-                        blueprint: Box::new(sub_blueprint),
-                        count: *count,
-                        vertical_range: vertical_range.clone(),
-                    }
-                }
-                JsonBlueprint::Decoration {
-                    decoration_block,
-                    placed_on,
-                    can_replace,
-                } => Blueprint::Decoration {
-                    decoration_block: blocks.get_id(&decoration_block),
-                    placed_on: placed_on
-                        .iter()
-                        .map(|block_name| blocks.get_id(block_name))
-                        .collect::<HashSet<BlockId>>(),
-                    can_replace: can_replace
-                        .iter()
-                        .map(|block_name| blocks.get_id(block_name))
-                        .collect::<HashSet<BlockId>>(),
-                },
-                JsonBlueprint::Tree {
-                    trunk_block,
-                    leaf_block,
-                    trunk_height,
-                    foliage_style,
-                    branches,
-                    random_height,
-                    trunk_width,
-                    soil_blocks,
-                    can_replace,
-                } => Blueprint::Tree(Tree {
-                    trunk_block: blocks.get_id(&trunk_block),
-                    foliage_style: match foliage_style {
-                        FoliageStyleJson::Normal => FoliageStyle::Normal {
-                            clipper: rand::distributions::Bernoulli::new(0.5).unwrap(),
-                            leaf_block: blocks.get_id(&leaf_block),
-                        },
-                        FoliageStyleJson::Blob { radius } => FoliageStyle::Blob {
-                            radius: *radius,
-                            leaf_block: blocks.get_id(&leaf_block),
-                        },
-                    },
-                    branches: match branches {
-                        Some(b) => rand::distributions::Uniform::new(b[0], b[1]),
-                        None => rand::distributions::Uniform::new(0, 1),
-                    },
-                    trunk_height: *trunk_height as i32,
-                    random_height: rand::distributions::Uniform::new_inclusive(
-                        0,
-                        random_height.unwrap_or(0) as i32,
-                    ),
-                    trunk_width: *trunk_width,
-                    soil_blocks: soil_blocks
-                        .iter()
-                        .map(|block_name| blocks.get_id(block_name))
-                        .collect::<HashSet<BlockId>>(),
-                    can_replace: can_replace
-                        .iter()
-                        .map(|block_name| blocks.get_id(block_name))
-                        .collect::<HashSet<BlockId>>(),
-                }),
-                JsonBlueprint::OreVein {
-                    ore_block,
-                    count,
-                    can_replace,
-                } => Blueprint::OreVein {
-                    ore_block: blocks.get_id(&ore_block),
+                Blueprint::Collection(collection)
+            }
+            JsonBlueprint::Distribution {
+                blueprint,
+                count,
+                distribution,
+            } => {
+                let sub_blueprint = Blueprint::new(
+                    blueprint.disambiguate(named_blueprints),
+                    named_blueprints,
+                    blocks,
+                );
+                Blueprint::Distribution {
+                    blueprint: Box::new(sub_blueprint),
                     count: *count,
-                    can_replace: can_replace
-                        .iter()
-                        .map(|block_name| blocks.get_id(block_name))
-                        .collect::<HashSet<BlockId>>(),
+                    distribution: distribution.clone(),
+                }
+            }
+            JsonBlueprint::Decoration {
+                decoration_block,
+                placed_on,
+                can_replace,
+            } => Blueprint::Decoration {
+                decoration_block: blocks.get_id(&decoration_block),
+                placed_on: placed_on
+                    .iter()
+                    .map(|block_name| blocks.get_id(block_name))
+                    .collect::<HashSet<BlockId>>(),
+                can_replace: can_replace
+                    .iter()
+                    .map(|block_name| blocks.get_id(block_name))
+                    .collect::<HashSet<BlockId>>(),
+            },
+            JsonBlueprint::Tree {
+                trunk_block,
+                leaf_block,
+                trunk_height,
+                foliage_style,
+                branches,
+                random_height,
+                trunk_width,
+                soil_blocks,
+                can_replace,
+            } => Blueprint::Tree(Tree {
+                trunk_block: blocks.get_id(&trunk_block),
+                foliage_style: match foliage_style {
+                    FoliageStyleJson::Normal => FoliageStyle::Normal {
+                        clipper: Bernoulli::new(0.5),
+                        leaf_block: blocks.get_id(&leaf_block),
+                    },
+                    FoliageStyleJson::Blob { radius } => FoliageStyle::Blob {
+                        radius: *radius,
+                        leaf_block: blocks.get_id(&leaf_block),
+                    },
                 },
+                branches: match branches {
+                    Some(b) => UniformDistribution::new(b[0], b[1]),
+                    None => UniformDistribution::new(0, 0),
+                },
+                trunk_height: *trunk_height as i32,
+                random_height: UniformDistribution::new(0, random_height.unwrap_or(0) as i32),
+                trunk_width: *trunk_width,
+                soil_blocks: soil_blocks
+                    .iter()
+                    .map(|block_name| blocks.get_id(block_name))
+                    .collect::<HashSet<BlockId>>(),
+                can_replace: can_replace
+                    .iter()
+                    .map(|block_name| blocks.get_id(block_name))
+                    .collect::<HashSet<BlockId>>(),
+            }),
+            JsonBlueprint::OreVein {
+                ore_block,
+                count,
+                can_replace,
+            } => Blueprint::OreVein {
+                ore_block: blocks.get_id(&ore_block),
+                count: *count,
+                can_replace: can_replace
+                    .iter()
+                    .map(|block_name| blocks.get_id(block_name))
+                    .collect::<HashSet<BlockId>>(),
             },
         }
     }
@@ -167,7 +159,7 @@ impl Blueprint {
         origin: BlockPosition,
         chunk: &mut Chunk,
         surface: &Surface,
-        rng: &mut rand::rngs::StdRng,
+        rng: &mut Rng,
     ) {
         match self {
             Blueprint::Collection(blueprints) => {
@@ -178,18 +170,14 @@ impl Blueprint {
             Blueprint::Distribution {
                 blueprint,
                 count,
-                vertical_range,
+                distribution,
             } => {
-                if let Some(vertical_range) = vertical_range {
-                    if vertical_range[0] > origin.y || vertical_range[1] < origin.y {
-                        return;
-                    }
-                };
-
-                let distribution = rand::distributions::Uniform::new(0, Chunk::SIZE.pow(3));
+                let feature_distribution = UniformDistribution::new(0, Chunk::SIZE.pow(3) - 1);
                 for _ in 0..*count {
-                    let position = origin + BlockPosition::from(rng.sample(distribution));
-                    blueprint.construct(position, chunk, surface, rng);
+                    let position = origin + BlockPosition::from(feature_distribution.sample(rng));
+                    if distribution.sample(position.y, rng) {
+                        blueprint.construct(position, chunk, surface, rng);
+                    }
                 }
             }
             Blueprint::Decoration {
@@ -200,7 +188,6 @@ impl Blueprint {
                 let mut terrain_feature = TerrainFeature::default();
                 terrain_feature.can_replace.extend(can_replace);
 
-                let chunk_position = ChunkPosition::from(origin);
                 let index = origin.as_chunk_index();
                 let index = index >> 4;
                 let (surface_y, surface_block) = match &surface[index] {
@@ -212,6 +199,7 @@ impl Blueprint {
                     return;
                 }
 
+                let chunk_position = ChunkPosition::from(origin);
                 let mut position = origin;
                 position.y = chunk_position.y + *surface_y as i32 + 1;
 
@@ -250,18 +238,17 @@ impl Blueprint {
                 let mut terrain_feature = TerrainFeature::default();
 
                 // TODO: Implement as const when making rand lib
-                let directions = rand::distributions::Slice::<IVec3>::new(&[
+                let directions = Choose::new(&[
                     IVec3::X,
                     IVec3::NEG_X,
                     IVec3::Y,
                     IVec3::NEG_Y,
                     IVec3::Z,
                     IVec3::NEG_Z,
-                ])
-                .unwrap();
+                ]);
 
                 let mut position = origin;
-                for direction in directions.sample_iter(rng).take(*count as usize) {
+                for direction in directions.iter(rng).take(*count as usize) {
                     position += *direction;
                     terrain_feature.insert_block(position, *ore_block)
                 }
@@ -301,6 +288,32 @@ enum AmbiguousJsonBlueprint {
     Inline(JsonBlueprint),
 }
 
+impl AmbiguousJsonBlueprint {
+    fn disambiguate<'a>(
+        &'a self,
+        named_blueprints: &'a HashMap<String, JsonBlueprint>,
+    ) -> &'a JsonBlueprint {
+        match self {
+            Self::Named(name) => &named_blueprints[name],
+            Self::Inline(blueprint) => blueprint,
+        }
+    }
+
+    fn validate(
+        &self,
+        named_blueprints: &HashMap<String, JsonBlueprint>,
+        blocks: &Blocks,
+    ) -> Option<String> {
+        match self {
+            Self::Named(name) if !named_blueprints.contains_key(name) => {
+                Some(format!("Reference to nonexistent blueprint: {}", &name))
+            }
+            Self::Inline(blueprint) => blueprint.validate(named_blueprints, blocks),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 enum JsonBlueprint {
@@ -310,7 +323,7 @@ enum JsonBlueprint {
     Distribution {
         blueprint: Box<AmbiguousJsonBlueprint>,
         count: u32,
-        vertical_range: Option<[i32; 2]>,
+        distribution: HeightDistribution,
     },
     Decoration {
         decoration_block: String,
@@ -335,6 +348,136 @@ enum JsonBlueprint {
     },
 }
 
+impl JsonBlueprint {
+    fn validate(
+        &self,
+        named_blueprints: &HashMap<String, JsonBlueprint>,
+        blocks: &Blocks,
+    ) -> Option<String> {
+        #[inline(never)]
+        fn validate_block(field_name: &str, block_name: &str, blocks: &Blocks) -> Option<String> {
+            if !blocks.contains_block(block_name) {
+                Some(format!(
+                    "'{field_name}' references a block with the name '{block_name}', but no block by that name exists. \
+                    Make sure a block by the same name is present at '{BLOCK_CONFIG_PATH}'",
+                ))
+            } else {
+                None
+            }
+        }
+
+        match self {
+            Self::Collection { blueprints } => {
+                for blueprint in blueprints {
+                    blueprint.validate(named_blueprints, blocks)?;
+                }
+            }
+            Self::Distribution {
+                blueprint,
+                distribution,
+                ..
+            } => {
+                blueprint.validate(named_blueprints, blocks)?;
+
+                match distribution {
+                    HeightDistribution::Triangle {
+                        min,
+                        mid,
+                        max,
+                        probability,
+                    } => {
+                        if min > mid {
+                            return Some(format!(
+                                "Invalid height distribution: min({}) must be less than mid({})",
+                                min, mid
+                            ));
+                        } else if mid > max {
+                            return Some(format!(
+                                "Invalid height distribution: mid({}) must be less than max({})",
+                                mid, max
+                            ));
+                        } else if max < min {
+                            return Some(format!(
+                                "Invalid height distribution: min({}) must be less than max({})",
+                                min, max
+                            ));
+                        }
+
+                        if *probability < 0.0 || *probability > 1.0 {
+                            return Some(format!(
+                                "Invalid height distribution: probability must be between 0 and 1"
+                            ));
+                        }
+                    }
+                    HeightDistribution::Uniform {
+                        min,
+                        max,
+                        probability,
+                    } => {
+                        if max < min {
+                            return Some(format!(
+                                "Invalid height distribution: min({}) must be less than max({})",
+                                min, max
+                            ));
+                        }
+
+                        if *probability < 0.0 || *probability > 1.0 {
+                            return Some(format!(
+                                "Invalid height distribution: probability must be between 0 and 1"
+                            ));
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            Self::Decoration {
+                decoration_block,
+                placed_on,
+                can_replace,
+            } => {
+                validate_block("decoration_block", &decoration_block, blocks)?;
+
+                for block in placed_on {
+                    validate_block("placed_on", block, blocks)?;
+                }
+                for block in can_replace {
+                    validate_block("can_replace", block, blocks)?;
+                }
+            }
+            Self::Tree {
+                trunk_block,
+                leaf_block,
+                soil_blocks,
+                can_replace,
+                ..
+            } => {
+                validate_block("trunk_block", &trunk_block, blocks)?;
+                validate_block("leaf_block", &leaf_block, blocks)?;
+
+                for block in soil_blocks {
+                    validate_block("soil_blocks", block, blocks)?;
+                }
+
+                for block in can_replace {
+                    validate_block("can_replace", block, blocks)?;
+                }
+            }
+            Self::OreVein {
+                ore_block,
+                can_replace,
+                ..
+            } => {
+                validate_block("ore_block", &ore_block, blocks)?;
+                for block_name in can_replace.iter() {
+                    validate_block("can_replace", block_name, blocks)?;
+                }
+            }
+        }
+
+        return None;
+    }
+}
+
 pub fn load_blueprints(blocks: &Blocks) -> HashMap<String, Blueprint> {
     let mut named_json_blueprints = HashMap::new();
 
@@ -349,11 +492,11 @@ pub fn load_blueprints(blocks: &Blocks) -> HashMap<String, Blueprint> {
             .path();
 
         let file = std::fs::File::open(&file_path).expect(&format!(
-            "Failed to open blueprint file at '{}'",
+            "Failed to open blueprint at: '{}'",
             file_path.display()
         ));
-        let blueprint = serde_json::from_reader(file).expect(&format!(
-            "Failed to read blueprint at '{}'",
+        let blueprint: JsonBlueprint = serde_json::from_reader(file).expect(&format!(
+            "Failed to read blueprint at: '{}'",
             file_path.display()
         ));
         let name = file_path
@@ -365,93 +508,12 @@ pub fn load_blueprints(blocks: &Blocks) -> HashMap<String, Blueprint> {
         named_json_blueprints.insert(name, blueprint);
     }
 
-    fn validate_blueprint(
-        parent_name: &str,
-        child_name: &str,
-        named_blueprints: &HashMap<String, AmbiguousJsonBlueprint>,
-    ) {
-        if !named_blueprints.contains_key(child_name) {
-            panic!(
-                "Failed while validating the terrain feature blueprints. The blueprint '{}', \
-                depends on another blueprint '{}', but it could not be found. This is most \
-                likely the result of a missing file at '{}', make sure it is present.",
-                parent_name,
-                child_name,
-                BLUEPRINT_PATH.to_owned() + child_name + ".json"
-            );
-        }
-    }
-
-    fn validate_block(blueprint_name: &str, block_name: &str, blocks: &Blocks) {
-        if !blocks.contains_block(block_name) {
-            panic!(
-                "Failed while validating the terrain feature blueprints. The blueprint '{}' \
-                references a block with the name '{}', but no block by that name exists. \
-                Make sure a block by the same name is present at '{}'",
-                blueprint_name, block_name, BLOCK_CONFIG_PATH
-            );
-        }
-    }
-
     for (blueprint_name, json_blueprint) in named_json_blueprints.iter() {
-        match json_blueprint {
-            AmbiguousJsonBlueprint::Named(child_name) => {
-                validate_blueprint(blueprint_name, child_name, &named_json_blueprints)
-            }
-            AmbiguousJsonBlueprint::Inline(json_blueprint) => match json_blueprint {
-                JsonBlueprint::Collection { blueprints } => {
-                    for child_blueprint in blueprints {
-                        if let AmbiguousJsonBlueprint::Named(child_name) = child_blueprint {
-                            validate_blueprint(blueprint_name, child_name, &named_json_blueprints)
-                        }
-                    }
-                }
-                JsonBlueprint::Distribution { blueprint, .. } => {
-                    if let AmbiguousJsonBlueprint::Named(child_name) = blueprint.as_ref() {
-                        validate_blueprint(blueprint_name, child_name, &named_json_blueprints)
-                    }
-                }
-                JsonBlueprint::Decoration {
-                    decoration_block,
-                    placed_on,
-                    can_replace,
-                } => {
-                    validate_block(blueprint_name, &decoration_block, blocks);
-                    for block_name in placed_on.iter() {
-                        validate_block(blueprint_name, block_name, blocks)
-                    }
-                    for block_name in can_replace.iter() {
-                        validate_block(blueprint_name, block_name, blocks)
-                    }
-                }
-                JsonBlueprint::Tree {
-                    trunk_block,
-                    leaf_block,
-                    soil_blocks,
-                    can_replace,
-                    ..
-                } => {
-                    validate_block(blueprint_name, &trunk_block, blocks);
-                    validate_block(blueprint_name, &leaf_block, blocks);
-                    for block_name in soil_blocks.iter() {
-                        validate_block(blueprint_name, block_name, blocks)
-                    }
-                    for block_name in can_replace.iter() {
-                        validate_block(blueprint_name, block_name, blocks)
-                    }
-                }
-                JsonBlueprint::OreVein {
-                    ore_block,
-                    can_replace,
-                    ..
-                } => {
-                    validate_block(blueprint_name, &ore_block, blocks);
-                    for block_name in can_replace.iter() {
-                        validate_block(blueprint_name, block_name, blocks)
-                    }
-                }
-            },
-        }
+        let Some(err) = json_blueprint.validate(&named_json_blueprints, blocks) else {
+            continue;
+        };
+
+        panic!("Error while parsing terrain feature blueprint '{blueprint_name}'.\nError: {err}");
     }
 
     let mut blueprints = HashMap::new();
@@ -471,11 +533,11 @@ struct Tree {
     // Foliage style the leaves are placed in
     foliage_style: FoliageStyle,
     // How many branches the tree should have
-    branches: rand::distributions::Uniform<u32>,
+    branches: UniformDistribution<u32>,
     // Minimum height of the tree
     trunk_height: i32,
     // A random integer between 0 and random_height is added to the trunk height.
-    random_height: rand::distributions::Uniform<i32>,
+    random_height: UniformDistribution<i32>,
     // How many blocks wide the trunk should be
     trunk_width: u32,
     // Which blocks the tree can grow from.
@@ -490,20 +552,16 @@ impl Tree {
         trunk_position: BlockPosition,
         height: i32,
         terrain_feature: &mut TerrainFeature,
-        rng: &mut rand::rngs::StdRng,
+        rng: &mut Rng,
     ) {
         // The lowest point on the trunk a branch can start at
         let branch_base = (height as f32 * 0.6) as i32;
-        let branch_sampler = rand::distributions::Uniform::new_inclusive(branch_base, height);
+        let branch_sampler = UniformDistribution::new(branch_base, height);
 
-        let rotation_sampler =
-            rand::distributions::Uniform::new_inclusive(0.0, std::f32::consts::PI * 2.0);
+        let rotation_sampler = UniformDistribution::new(0.0, std::f32::consts::PI * 2.0);
 
         let max_branch_length = height - branch_base;
-        let length_sampler = rand::distributions::Uniform::new_inclusive(
-            3.min(max_branch_length),
-            max_branch_length,
-        );
+        let length_sampler = UniformDistribution::new(3.min(max_branch_length), max_branch_length);
 
         for _ in 0..self.branches.sample(rng) {
             let branch_height = branch_sampler.sample(rng);
@@ -533,7 +591,7 @@ impl Tree {
         trunk_position: BlockPosition,
         surface_block: BlockId,
         mut terrain_feature: &mut TerrainFeature,
-        rng: &mut rand::rngs::StdRng,
+        rng: &mut Rng,
     ) {
         if !self.soil_blocks.contains(&surface_block) {
             return;
@@ -568,7 +626,7 @@ impl Tree {
 enum FoliageStyle {
     Normal {
         // Clips leaves off the top
-        clipper: rand::distributions::Bernoulli,
+        clipper: Bernoulli,
         leaf_block: BlockId,
     },
     Blob {
@@ -582,7 +640,7 @@ impl FoliageStyle {
         &self,
         branch_tip: BlockPosition,
         terrain_feature: &mut TerrainFeature,
-        rng: &mut rand::rngs::StdRng,
+        rng: &mut Rng,
     ) {
         match self {
             Self::Normal {
@@ -652,4 +710,69 @@ impl FoliageStyle {
 enum FoliageStyleJson {
     Normal,
     Blob { radius: i32 },
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "lowercase")]
+enum HeightDistribution {
+    Uniform {
+        min: i32,
+        max: i32,
+        probability: f32,
+    },
+    Triangle {
+        min: i32,
+        mid: i32,
+        max: i32,
+        probability: f32,
+    },
+}
+
+impl HeightDistribution {
+    pub fn new_triangle(min: i32, mid: i32, max: i32, peak_probability: f32) -> Self {
+        assert!(min < mid);
+        assert!(mid < max);
+        assert!(0.0 <= peak_probability && peak_probability <= 1.0);
+
+        Self::Triangle {
+            min,
+            mid,
+            max,
+            probability: peak_probability,
+        }
+    }
+
+    pub fn sample(&self, height: i32, rng: &mut Rng) -> bool {
+        match *self {
+            Self::Uniform {
+                min,
+                max,
+                probability,
+            } => {
+                if height < min || height > max {
+                    return false;
+                }
+
+                rng.next_f32() < probability
+            }
+            Self::Triangle {
+                min,
+                mid,
+                max,
+                probability,
+            } => {
+                let chance = rng.next_f32();
+
+                if height < min {
+                    false
+                } else if height < mid {
+                    chance < probability * ((height - min) / (mid - min)) as f32
+                } else if height <= max {
+                    chance < probability * ((max - height) / (max - mid)) as f32
+                } else {
+                    false
+                }
+            }
+        }
+    }
 }

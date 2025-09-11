@@ -10,7 +10,7 @@ use fmc::{
     players::{Camera, Player, Target, Targets},
     prelude::*,
     protocol::messages,
-    utils::Rng,
+    random::Rng,
     world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 

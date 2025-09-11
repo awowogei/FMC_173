@@ -7,14 +7,14 @@ use fmc::{
     players::Player,
     prelude::*,
     protocol::messages,
-    utils::Rng,
+    random::Rng,
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::items::DroppedItem;
 
-use super::{movement::MovementPluginPacket, Equipment, GameMode, Inventory, RespawnEvent};
+use super::{Equipment, GameMode, Inventory, RespawnEvent, movement::MovementPluginPacket};
 
 pub struct HealthPlugin;
 impl Plugin for HealthPlugin {

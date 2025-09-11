@@ -8,5 +8,11 @@
             "stone"
         ]
     },
-    "count": 5
+    "count": 5,
+    "distribution": {
+        "type": "uniform",
+        "min": -100,
+        "max": 0,
+        "probability": 0.75
+    }
 }

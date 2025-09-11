@@ -3,14 +3,12 @@ use fmc::{
     noise::{Frequency, Noise},
     // noise::Noise,
     prelude::*,
-    utils::Rng,
+    random::Rng,
     world::{
-        chunk::{Chunk, ChunkPosition},
         Surface, TerrainGenerator,
+        chunk::{Chunk, ChunkPosition},
     },
 };
-
-use rand::SeedableRng;
 
 mod biomes;
 mod blueprints;
@@ -397,7 +395,7 @@ impl Earth {
         let seed = ((chunk_position.x as u64) << 32 | chunk_position.z as u32 as u64)
             .overflowing_mul(self.seed)
             .0;
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let mut rng = Rng::new(seed);
 
         let biome = self.biomes.get_biome();
 

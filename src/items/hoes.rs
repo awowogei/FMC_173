@@ -6,8 +6,8 @@ use fmc::{
     players::{Player, Target, Targets},
     prelude::*,
     protocol::messages,
-    utils::Rng,
-    world::{chunk::ChunkPosition, BlockUpdate, ChunkSubscriptions},
+    random::Rng,
+    world::{BlockUpdate, ChunkSubscriptions, chunk::ChunkPosition},
 };
 
 use super::{DroppedItem, ItemRegistry, ItemUses};
