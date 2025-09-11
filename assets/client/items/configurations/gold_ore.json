@@ -1,0 +1,7 @@
+{
+    "name": "Gold Ore",
+    "image": "gold_ore.png",
+    "block": "gold_ore",
+    "equip_model": "gold_ore",
+    "stack_size": 64
+}

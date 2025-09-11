@@ -1,0 +1,18 @@
+{
+    "type": "distribution",
+    "blueprint": {
+        "type": "orevein",
+        "ore_block": "gold_ore",
+        "count": 4,
+        "can_replace": [
+            "stone"
+        ]
+    },
+    "count": 2,
+    "distribution": {
+        "type": "uniform",
+        "min": -100,
+        "max": -60,
+        "probability": 0.75
+    }
+}
