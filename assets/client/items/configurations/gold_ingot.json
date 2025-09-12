@@ -1,0 +1,6 @@
+{
+    "name": "Gold Ingot",
+    "image": "gold_ingot.png",
+    "equip_model": "gold_ingot",
+    "stack_size": 64
+}

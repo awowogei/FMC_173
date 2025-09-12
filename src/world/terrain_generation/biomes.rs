@@ -52,6 +52,7 @@ impl Biomes {
                 "tall_grass".to_owned(),
                 "coal_ore".to_owned(),
                 "iron_ore".to_owned(),
+                "gold_ore".to_owned(),
             ],
         };
 
