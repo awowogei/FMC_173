@@ -1,0 +1,11 @@
+{
+    "block": {
+        "top": "gold_block.png",
+        "bottom": "gold_block.png",
+        "left": "gold_block.png",
+        "right": "gold_block.png",
+        "front": "gold_block.png",
+        "back": "gold_block.png",
+        "material": "opaque_block"
+    }
+}

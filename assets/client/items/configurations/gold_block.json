@@ -1,0 +1,7 @@
+{
+    "name": "Gold Block",
+    "image": "gold_block.png",
+    "block": "gold_block",
+    "equip_model": "gold_block",
+    "stack_size": 64
+}

@@ -1,0 +1,44 @@
+{
+    "parent": "default_block.json",
+    "name": "gold_block",
+    "faces": {
+        "top": "gold_block.png",
+        "bottom": "gold_block.png",
+        "left": "gold_block.png",
+        "right": "gold_block.png",
+        "front": "gold_block.png",
+        "back": "gold_block.png"
+    },
+    "tools": ["pickaxe"],
+    "hardness": 9,
+    "drop": {
+        "requires_tool": true,
+        "drop": "gold_block"
+    },
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    }
+}
