@@ -1,0 +1,6 @@
+{
+    "name": "Diamon",
+    "image": "diamond.png",
+    "equip_model": "diamond",
+    "stack_size": 64
+}

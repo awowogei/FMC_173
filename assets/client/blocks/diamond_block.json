@@ -1,0 +1,44 @@
+{
+    "parent": "default_block.json",
+    "name": "diamond_block",
+    "faces": {
+        "top": "diamond_block.png",
+        "bottom": "diamond_block.png",
+        "left": "diamond_block.png",
+        "right": "diamond_block.png",
+        "front": "diamond_block.png",
+        "back": "diamond_block.png"
+    },
+    "tools": ["pickaxe"],
+    "hardness": 9,
+    "drop": {
+        "requires_tool": true,
+        "drop": "diamond_block"
+    },
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    }
+}

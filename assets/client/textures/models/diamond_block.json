@@ -1,0 +1,11 @@
+{
+    "block": {
+        "top": "diamond_block.png",
+        "bottom": "diamond_block.png",
+        "left": "diamond_block.png",
+        "right": "diamond_block.png",
+        "front": "diamond_block.png",
+        "back": "diamond_block.png",
+        "material": "opaque_block"
+    }
+}

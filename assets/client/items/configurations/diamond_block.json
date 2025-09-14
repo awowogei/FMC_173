@@ -1,0 +1,7 @@
+{
+    "name": "Diamon Block",
+    "image": "diamond_block.png",
+    "block": "diamond_block",
+    "equip_model": "diamond_block",
+    "stack_size": 64
+}
