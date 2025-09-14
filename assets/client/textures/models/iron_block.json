@@ -1,0 +1,11 @@
+{
+    "block": {
+        "top": "iron_block.png",
+        "bottom": "iron_block.png",
+        "left": "iron_block.png",
+        "right": "iron_block.png",
+        "front": "iron_block.png",
+        "back": "iron_block.png",
+        "material": "opaque_block"
+    }
+}

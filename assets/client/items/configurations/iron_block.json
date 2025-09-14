@@ -1,0 +1,7 @@
+{
+    "name": "Iron Block",
+    "image": "iron_block.png",
+    "block": "iron_block",
+    "equip_model": "iron_block",
+    "stack_size": 64
+}

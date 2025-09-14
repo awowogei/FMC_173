@@ -1,0 +1,44 @@
+{
+    "parent": "default_block.json",
+    "name": "iron_block",
+    "faces": {
+        "top": "iron_block.png",
+        "bottom": "iron_block.png",
+        "left": "iron_block.png",
+        "right": "iron_block.png",
+        "front": "iron_block.png",
+        "back": "iron_block.png"
+    },
+    "tools": ["pickaxe"],
+    "hardness": 9,
+    "drop": {
+        "requires_tool": true,
+        "drop": "iron_block"
+    },
+    "sound": {
+        "place": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "step": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "hit": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ],
+        "destroy": [
+            "stone_1.ogg",
+            "stone_2.ogg",
+            "stone_3.ogg",
+            "stone_4.ogg"
+        ]
+    }
+}
