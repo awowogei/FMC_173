@@ -15,8 +15,6 @@ pub struct PathFinder {
     start: BlockPosition,
     goal: BlockPosition,
     path: Vec<DVec3>,
-    // Holds indices into the path of the most direct path to the goal
-    shortcuts: Vec<DVec3>,
 }
 
 impl PathFinder {
@@ -27,7 +25,6 @@ impl PathFinder {
             start: BlockPosition::default(),
             goal: BlockPosition::default(),
             path: Vec::new(),
-            shortcuts: Vec::new(),
         };
     }
 
@@ -42,9 +39,15 @@ impl PathFinder {
         }
 
         self.path.clear();
-        self.shortcuts.clear();
 
-        let mut queue = BinaryHeap::with_capacity(16_usize.pow(3));
+        // Direct paths feel much better, so we always try to find one before fallback to grid
+        // based pathfinding.
+        self.find_direct_path(world_map, start, goal);
+        if !self.path.is_empty() {
+            return;
+        }
+
+        let mut queue = BinaryHeap::with_capacity(100);
         let mut node_map = IndexMap::new();
         node_map.insert(
             block_start,
@@ -129,24 +132,93 @@ impl PathFinder {
         }
     }
 
+    // Try to find a straight path that leads directly to the goal. Will fail if there's any type
+    // of obstruction.
+    fn find_direct_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
+        let forward = (goal - start).normalize().xz();
+        let direction = forward.signum();
+
+        // How far along the forward vector you need to go to hit the next block in each direction.
+        //
+        // fract_gl() uses x - x.floor(), which yields the correct value for all negative
+        // directions, e.g. fract_gl(-1.32) = 0.68. When the direction is positive it is just
+        // inverted.
+        let mut distance_next = start.xz().fract_gl();
+        distance_next = DVec2::select(
+            direction.cmpeq(DVec2::ONE),
+            1.0 - distance_next,
+            distance_next,
+        );
+        distance_next = distance_next / forward.abs();
+
+        // How far along the forward vector you need to go to traverse one block in each direction.
+        let distance_increment = 1.0 / forward.abs();
+        // +/-1 to shift block_pos when it hits the grid
+        let step = direction.as_ivec2();
+
+        let mut block_position = BlockPosition::from(start);
+
+        while (distance_next.min_element() * forward).length_squared()
+            < start.distance_squared(goal)
+        {
+            let next = distance_next.min_element();
+            if distance_next.x == next {
+                block_position.x += step.x;
+                distance_next.x += distance_increment.x;
+            } else {
+                block_position.z += step.y;
+                distance_next.y += distance_increment.y;
+            }
+
+            if block_position == BlockPosition::from(goal) {
+                // Found path
+                self.path.push(goal);
+                return;
+            }
+
+            let above_cost = Self::get_move_cost(world_map, block_position + IVec3::Y);
+            let cost = Self::get_move_cost(world_map, block_position);
+            let below_cost = Self::get_move_cost(world_map, block_position - IVec3::Y);
+            let second_below_cost = Self::get_move_cost(world_map, block_position - IVec3::Y * 2);
+
+            if above_cost == f32::INFINITY {
+                // If there's a block at head height, fail
+                return;
+            }
+
+            if cost == f32::INFINITY {
+                // jump up one block
+                block_position.y += 1;
+                continue;
+            }
+
+            if below_cost == f32::INFINITY {
+                // Move forward
+                continue;
+            } else {
+                // Move down one block
+                block_position.y -= 1;
+
+                if second_below_cost != f32::INFINITY {
+                    // fall down
+                    block_position.y -= 1;
+                }
+            }
+        }
+    }
+
+    // TODO: Mobs move very rigidly because they follow the grid. Path smoothing isn't enough to
+    // make it good, it stills feels like the mob takes a weird detour. The best feeling path is just
+    // moving directly towards the player. Instead of doing some costly post process step to
+    // identify straight lines, maybe just check the direct path to the player and fall back to
+    // normal grid following if it's not possible.
     pub fn next_node(&mut self, current_postition: DVec3) -> Option<DVec3> {
         while let Some(next_position) = self.path.last() {
-            if next_position.xz().distance_squared(current_postition.xz()) >= 0.25 {
+            if next_position.xz().distance_squared(current_postition.xz()) >= 0.5 {
                 return Some(*next_position);
             }
 
             self.path.pop();
-        }
-        None
-    }
-
-    pub fn next_shortcut(&mut self, current_postition: DVec3) -> Option<DVec3> {
-        while let Some(next_position) = self.shortcuts.last() {
-            if next_position.xz().distance_squared(current_postition.xz()) >= 0.25 {
-                return Some(*next_position);
-            }
-
-            self.shortcuts.pop();
         }
         None
     }
@@ -165,7 +237,7 @@ impl PathFinder {
     }
 
     fn get_heuristic_cost(&self, position: BlockPosition) -> f32 {
-        position.distance_squared(*self.goal).abs() as f32
+        position.distance_squared(*self.goal) as f32
         //let delta = (position - self.goal).abs().as_vec3();
 
         //return delta.x + delta.y + delta.z;
@@ -275,32 +347,6 @@ impl PathFinder {
         }
         // Same, but since the mob will already be at the start position, it can be removed.
         self.path.pop();
-
-        self.calc_shortcuts();
-    }
-
-    fn calc_shortcuts(&mut self) {
-        let start = self.start.as_dvec3();
-        let goal = self.path[0];
-        let mut distance = goal.distance_squared(start);
-
-        for position in self.path.iter().rev() {
-            let new_distance = position.distance_squared(goal);
-            // If it ever moves in a direction where the distance to the goal increases, it must
-            // mean it's pathing around something.
-            if new_distance > distance {
-                self.shortcuts.push(*position);
-            }
-            distance = new_distance;
-        }
-
-        if self.shortcuts.len() > self.path.len() {
-            panic!();
-        }
-
-        // The goal
-        self.shortcuts.push(goal);
-        self.shortcuts.reverse();
     }
 }
 
