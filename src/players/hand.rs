@@ -25,13 +25,18 @@ impl Plugin for HandPlugin {
         app.insert_resource(MiningEvents::default()).add_systems(
             Update,
             (
-                handle_left_clicks,
-                handle_right_clicks.in_set(ItemUseSystems),
+                handle_left_clicks.in_set(HandSystems),
+                handle_right_clicks
+                    .in_set(ItemUseSystems)
+                    .in_set(HandSystems),
                 break_blocks.after(handle_left_clicks),
             ),
         );
     }
 }
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct HandSystems;
 
 /// Component that tracks when a player right clicks the entity
 #[derive(Component, Default)]
@@ -77,7 +82,9 @@ fn handle_left_clicks(
     mut click_tracker: Local<HashSet<Entity>>,
 ) {
     for (mut hand_hits, _) in hittable_entities.iter_mut() {
-        hand_hits.player_entities.clear();
+        if !hand_hits.player_entities.is_empty() {
+            hand_hits.player_entities.clear();
+        }
     }
 
     for click in clicks.read() {
@@ -806,8 +813,7 @@ fn handle_right_clicks(
                         block_id,
                         block_face,
                         ..
-                    }) = targets
-                        .get_first_block(|block_id| blocks.get_config(block_id).hardness.is_some())
+                    }) = targets.get_first_block(|block_id| blocks.get_config(block_id).is_solid())
                     else {
                         action = ActionOrder::UseItem;
                         continue;

@@ -8,6 +8,7 @@ mod dropped_items;
 pub mod bread;
 pub mod hoes;
 pub mod seeds;
+pub mod spawn_crates;
 
 pub use dropped_items::DroppedItem;
 
@@ -19,6 +20,7 @@ impl Plugin for ItemPlugin {
             .add_plugins(crafting::CraftingPlugin)
             .add_plugins(hoes::HoePlugin)
             .add_plugins(bread::BreadPlugin)
+            .add_plugins(spawn_crates::CratePlugin)
             .add_plugins(seeds::SeedPlugin);
     }
 }

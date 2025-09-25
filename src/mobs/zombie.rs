@@ -4,23 +4,23 @@ use fmc::{
     bevy::math::DVec3,
     blocks::{BlockPosition, Blocks},
     database::Database,
+    items::Items,
     models::{AnimationPlayer, Model, ModelVisibility, Models},
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     random::{Rng, UniformDistribution},
-    world::{WorldMap, chunk::Chunk},
+    world::WorldMap,
 };
 
 use crate::{
+    items::spawn_crates::MobCrates,
     players::{GameMode, HandHits, PlayerDamageEvent},
-    settings::Settings,
     skybox::Clock,
 };
 
 use super::{
-    Health, Mob, MobDespawnEvent, MobRandomSound, MobSounds, MobSpawnEvent, SoundCollection,
-    pathfinding::PathFinder,
+    Mob, MobConfig, MobHealth, MobSoundCollection, Mobs, RandomMobs, pathfinding::PathFinder,
 };
 
 pub struct ZombiePlugin;
@@ -29,9 +29,7 @@ impl Plugin for ZombiePlugin {
         app.add_systems(Startup, setup).add_systems(
             Update,
             (
-                spawn_zombies,
-                despawn_zombies.after(super::update_mob_map),
-                wander,
+                find_wander_location,
                 move_to_pathfinding_goal,
                 hunt_player,
                 hide_during_daytime,
@@ -41,40 +39,62 @@ impl Plugin for ZombiePlugin {
     }
 }
 
-fn is_night_time(clock: &Res<Clock>) -> bool {
-    clock.as_secs() > 700 && clock.as_secs() < 1100
-}
-
-#[derive(Component, Default)]
+#[derive(Component)]
 struct Zombie {
     wander_timer: Timer,
     // Player targeted
     target: Option<Entity>,
+    rng: Rng,
 }
 
 impl Zombie {
     const EYES: DVec3 = DVec3::new(0.0, 1.65, 0.0);
+
+    fn new() -> Self {
+        let mut zombie = Self {
+            wander_timer: Timer::default(),
+            target: None,
+            rng: Rng::new(0),
+        };
+
+        zombie.reset_wander_timer();
+        zombie
+    }
+
+    fn set_target(&mut self, target: Option<Entity>) {
+        self.target = target;
+        if target.is_none() {
+            self.reset_wander_timer();
+        }
+    }
+
+    fn is_wandering(&self) -> bool {
+        self.target.is_none()
+    }
+
+    fn reset_wander_timer(&mut self) {
+        self.wander_timer = Timer::from_seconds(
+            UniformDistribution::new(0.0, 1.0).sample(&mut self.rng),
+            TimerMode::Once,
+        );
+    }
 }
 
 #[derive(Bundle)]
 struct ZombieBundle {
-    mob: Mob,
+    health: MobHealth,
     zombie: Zombie,
     physics: Physics,
     path_finder: PathFinder,
     collider: Collider,
     hits: HandHits,
-    random_sound: MobRandomSound,
 }
 
 impl Default for ZombieBundle {
     fn default() -> Self {
         Self {
-            mob: Mob {
-                health: Health::new(20),
-                invincibility: None,
-            },
-            zombie: Zombie::default(),
+            health: MobHealth::new(20),
+            zombie: Zombie::new(),
             physics: Physics::default(),
             path_finder: PathFinder::new(1, 1),
             // TODO: This is done because aabbs are rotated during collision detection(blocks that are
@@ -90,12 +110,18 @@ impl Default for ZombieBundle {
                 DVec3::new(0.3, 1.8, 0.3),
             ),
             hits: HandHits::default(),
-            random_sound: MobRandomSound::default(),
         }
     }
 }
 
-fn setup(database: Res<Database>, mut mobs: ResMut<MobSounds>) {
+fn setup(
+    database: Res<Database>,
+    items: Res<Items>,
+    mut mobs: ResMut<Mobs>,
+    mut random_mobs: ResMut<RandomMobs>,
+    mut mob_crates: ResMut<MobCrates>,
+    models: Res<Models>,
+) {
     let connection = database.get_write_connection();
     connection
         .execute(
@@ -110,7 +136,26 @@ fn setup(database: Res<Database>, mut mobs: ResMut<MobSounds>) {
         )
         .expect("Could not create 'zombies' table");
 
-    let sounds = SoundCollection {
+    let zombie_model = models.get_config_by_name("zombie").unwrap();
+    let zombie_id = zombie_model.id;
+
+    let move_animation = zombie_model.animations["wander"];
+    let idle_animation = zombie_model.animations["idle"];
+
+    let spawn_zombie = move |commands: &mut EntityCommands| {
+        let mut animation_player = AnimationPlayer::default();
+        animation_player.set_move_animation(Some(move_animation));
+        animation_player.set_idle_animation(Some(idle_animation));
+        animation_player.set_transition_time(1.0);
+
+        commands.insert((
+            ZombieBundle::default(),
+            Model::Asset(zombie_id),
+            animation_player,
+        ));
+    };
+
+    let sounds = MobSoundCollection {
         random: vec![
             "zombie_moan_1.ogg".to_owned(),
             "zombie_moan_2.ogg".to_owned(),
@@ -120,82 +165,15 @@ fn setup(database: Res<Database>, mut mobs: ResMut<MobSounds>) {
         death: vec!["zombie_death.ogg".to_owned()],
     };
 
-    mobs.register("zombie", sounds)
-}
+    let mob_id = mobs.add_mob(MobConfig {
+        spawn_function: Box::new(spawn_zombie),
+        sounds,
+    });
 
-fn spawn_zombies(
-    mut commands: Commands,
-    settings: Res<Settings>,
-    clock: Res<Clock>,
-    mob_sounds: Res<MobSounds>,
-    // database: Res<Database>,
-    // world_map: Res<WorldMap>,
-    models: Res<Models>,
-    mut spawn_events: EventReader<MobSpawnEvent>,
-) {
-    for spawn_event in spawn_events.read() {
-        // x position is left 32 bits and z position the right 32 bits. z must be converted to u32
-        // first because it will just fill the left 32 bits with junk. World seed is used to change
-        // which chunks are next to each other.
-        let seed = ((spawn_event.position.x as u64) << 32 | spawn_event.position.z as u32 as u64)
-            .overflowing_mul(settings.seed())
-            .0;
-        let mut rng = Rng::new(seed);
-        if rng.next_u32() % 10 != 0 {
-            continue;
-        }
+    random_mobs.add_hostile(4, mob_id);
 
-        let group_size = rng.next_u32() % 3 + 1;
-
-        for _ in 0..group_size {
-            let x = rng.next_u32() as usize % Chunk::SIZE;
-            let z = rng.next_u32() as usize % Chunk::SIZE;
-            // This handles the entire column of chunks. If the surface isn't found here, the
-            // rng is deterministic, and it will check again in the chunks above and below.
-            let Some((y, block_id)) = spawn_event.surface[x << 4 | z] else {
-                continue;
-            };
-
-            if block_id != Blocks::get().get_id("grass") {
-                continue;
-            }
-
-            let spawn_position = BlockPosition::from(spawn_event.position)
-                + BlockPosition::new(x as i32, y as i32, z as i32);
-
-            let zombie_model = models.get_config_by_name("zombie").unwrap();
-
-            let mut animations = AnimationPlayer::default();
-            animations.set_move_animation(Some(zombie_model.animations["wander"]));
-            animations.set_idle_animation(Some(zombie_model.animations["idle"]));
-            animations.set_transition_time(1.0);
-
-            commands.spawn((
-                ZombieBundle::default(),
-                mob_sounds.get_handle("zombie"),
-                Model::Asset(zombie_model.id),
-                if is_night_time(&clock) {
-                    ModelVisibility::Visible
-                } else {
-                    ModelVisibility::Hidden
-                },
-                animations,
-                Transform::from_translation(spawn_position.as_dvec3() + DVec3::new(0.5, 1.0, 0.5)),
-            ));
-        }
-    }
-}
-
-fn despawn_zombies(
-    mut commands: Commands,
-    zombies: Query<(), With<Zombie>>,
-    mut despawn_events: EventReader<MobDespawnEvent>,
-) {
-    for despawn_event in despawn_events.read() {
-        if zombies.get(despawn_event.entity).is_ok() {
-            commands.entity(despawn_event.entity).despawn();
-        }
-    }
+    let zombie_crate_id = items.get_id("zombie_crate").unwrap();
+    mob_crates.add_crate(zombie_crate_id, mob_id);
 }
 
 fn hunt_player(
@@ -225,7 +203,8 @@ fn hunt_player(
         }
 
         if let Some(player_entity) = hand_hits.iter().last() {
-            zombie.target = Some(player_entity);
+            // target the player that last hit it
+            zombie.set_target(Some(player_entity));
         } else if zombie.target.is_none() {
             for (player_entity, game_mode, player_transform, camera) in players.iter() {
                 if *game_mode != GameMode::Survival
@@ -265,7 +244,7 @@ fn hunt_player(
                 if hit {
                     continue;
                 } else {
-                    zombie.target = Some(player_entity);
+                    zombie.set_target(Some(player_entity));
                 }
             }
 
@@ -278,7 +257,7 @@ fn hunt_player(
 
         let Ok((_, game_mode, player_transform, _)) = players.get(zombie.target.unwrap()) else {
             // Player might disconnect
-            zombie.target = None;
+            zombie.set_target(None);
             animation_player.set_transition_time(1.0);
             animation_player.set_move_animation(Some(zombie_model.animations["wander"]));
             animation_player.set_idle_animation(Some(zombie_model.animations["idle"]));
@@ -292,7 +271,7 @@ fn hunt_player(
             || *game_mode != GameMode::Survival
         {
             // Lose interest
-            zombie.target = None;
+            zombie.set_target(None);
             animation_player.set_transition_time(1.0);
             animation_player.set_move_animation(Some(zombie_model.animations["wander"]));
             animation_player.set_idle_animation(Some(zombie_model.animations["idle"]));
@@ -306,19 +285,15 @@ fn hunt_player(
         animation_player.set_idle_animation(Some(zombie_model.animations["hunt_idle"]));
         animation_player.set_transition_time(0.2);
 
-        let mut offset = player_transform.translation() - zombie_transform.translation();
-        offset.y = 0.0;
-        offset = offset.normalize();
-
         path_finder.find_path(
             &world_map,
             zombie_transform.translation(),
-            player_transform.translation() - offset,
+            player_transform.translation(),
         );
     }
 }
 
-fn wander(
+fn find_wander_location(
     world_map: Res<WorldMap>,
     time: Res<Time>,
     mut zombies: Query<(
@@ -330,18 +305,12 @@ fn wander(
     mut rng: Local<Rng>,
 ) {
     for (mut zombie, mut path_finder, transform, visibility) in zombies.iter_mut() {
-        if !visibility.is_visible() {
+        if !visibility.is_visible() || !zombie.is_wandering() {
             continue;
         }
 
         zombie.wander_timer.tick(time.delta());
-
-        if zombie.wander_timer.finished() {
-            zombie.wander_timer = Timer::from_seconds(
-                UniformDistribution::new(15.0, 30.0).sample(&mut rng),
-                TimerMode::Once,
-            );
-        } else {
+        if !zombie.wander_timer.just_finished() {
             continue;
         }
 
@@ -456,17 +425,25 @@ const WANDER_ACCELERATION: f64 = 10.0;
 fn move_to_pathfinding_goal(
     time: Res<Time>,
     mut zombies: Query<
-        (&Mob, &Zombie, &mut PathFinder, &mut Physics, &mut Transform),
+        (
+            &Mob,
+            &MobHealth,
+            &mut Zombie,
+            &mut PathFinder,
+            &mut Physics,
+            &mut Transform,
+        ),
         Or<(Changed<GlobalTransform>, Changed<PathFinder>)>,
     >,
 ) {
-    for (mob, zombie, mut path_finder, mut physics, mut transform) in zombies.iter_mut() {
+    for (mob, health, mut zombie, mut path_finder, mut physics, mut transform) in zombies.iter_mut()
+    {
         // Mob entities are kept for a little while after death to show a death pose
-        if mob.health.is_dead() {
+        if health.is_dead() {
             continue;
         }
 
-        if let Some(next_position) = path_finder.next_shortcut(transform.translation) {
+        if let Some(next_position) = path_finder.next_node(transform.translation) {
             let new_rotation = transform.looking_at(next_position, DVec3::Y).rotation;
             transform.rotation = transform
                 .rotation
@@ -484,7 +461,7 @@ fn move_to_pathfinding_goal(
                 && (physics.grounded.x || physics.grounded.z)
                 && physics.grounded.y
             {
-                physics.velocity.y += JUMP_VELOCITY;
+                physics.velocity.y = JUMP_VELOCITY;
             }
 
             let mut acceleration = if zombie.target.is_some() {
@@ -500,23 +477,24 @@ fn move_to_pathfinding_goal(
             // TODO: Needs states for when grounded/swimming/falling and differing speeds.
             physics.acceleration.x += direction.x * acceleration;
             physics.acceleration.z += direction.z * acceleration;
+        } else if zombie.is_wandering() {
+            zombie.reset_wander_timer();
         }
     }
 }
 
-// TODO: They can't just appeaar all at the same time
+// TODO: They can't just appear all at the same time
 fn hide_during_daytime(
     mut zombies: Query<&mut ModelVisibility, With<Zombie>>,
     clock: Res<Clock>,
     mut hidden: Local<bool>,
 ) {
-    let night_time = is_night_time(&clock);
-    if !*hidden && !night_time {
+    if !*hidden && !clock.is_night() {
         *hidden = true;
         for mut visibility in zombies.iter_mut() {
-            *visibility = ModelVisibility::Hidden;
+            *visibility = ModelVisibility::Visible;
         }
-    } else if *hidden && night_time {
+    } else if *hidden && clock.is_night() {
         *hidden = false;
         for mut visibility in zombies.iter_mut() {
             *visibility = ModelVisibility::Visible;

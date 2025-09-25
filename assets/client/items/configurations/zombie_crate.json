@@ -1,0 +1,6 @@
+{
+    "name": "Zombie crate",
+    "image": "zombie_crate.png",
+    "equip_model": "zombie_crate",
+    "stack_size": 64
+}

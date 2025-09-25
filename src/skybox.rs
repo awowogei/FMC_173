@@ -26,6 +26,10 @@ pub struct Clock {
 }
 
 impl Clock {
+    pub fn is_night(&self) -> bool {
+        self.time.as_secs() > 700 && self.time.as_secs() < 1100
+    }
+
     pub fn set_time(&mut self, time: f32) {
         // rem_euclid is just modulo that wraps around when the time is negative. e.g. -10
         // gives DAY_LENGTH - 10 instead of just -10

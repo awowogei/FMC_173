@@ -86,15 +86,15 @@ pub struct SpawnPoint {
     pub radius: i32,
 }
 
-/// Order systems that break blocks before this systemset to avoid 1-frame lag.
-#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
-pub struct BreakBlocks;
-
-pub struct BreakBlockEvent {
-    position: BlockPosition,
-    particles: bool,
-    drop: bool,
-    sound: bool,
-}
-
-fn break_blocks() {}
+///// Order systems that break blocks before this systemset to avoid 1-frame lag.
+// #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+// pub struct BreakBlocks;
+//
+// pub struct BreakBlockEvent {
+//     position: BlockPosition,
+//     particles: bool,
+//     drop: bool,
+//     sound: bool,
+// }
+//
+// fn break_blocks() {}

@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     items::{DroppedItem, crafting::CraftingGrid},
+    mobs::MobCap,
     settings::Settings,
     world::WorldProperties,
 };
@@ -37,7 +38,7 @@ mod health;
 mod inventory_interface;
 mod movement;
 
-pub use hand::{HandHits, HandInteractions};
+pub use hand::{HandHits, HandInteractions, HandSystems};
 pub use health::{HealEvent, Health, PlayerDamageEvent};
 
 pub struct PlayerPlugin;
@@ -131,6 +132,7 @@ pub struct PlayerBundle {
     pub crafting_table: CraftingGrid,
     pub health_bundle: HealthBundle,
     pub game_mode: GameMode,
+    pub mob_cap: MobCap,
 }
 
 impl PlayerBundle {
@@ -153,6 +155,7 @@ impl Default for PlayerBundle {
             crafting_table: CraftingGrid::with_size(4),
             health_bundle: HealthBundle::default(),
             game_mode: GameMode::default(),
+            mob_cap: MobCap::default(),
         }
     }
 }

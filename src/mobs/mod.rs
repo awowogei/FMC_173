@@ -1,11 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::time::Duration;
 
 use fmc::{
     bevy::math::{DQuat, DVec3},
-    blocks::Blocks,
+    blocks::{BlockPosition, Blocks},
     items::Items,
     models::{ModelColor, ModelVisibility},
     networking::Server,
@@ -14,31 +11,37 @@ use fmc::{
     prelude::*,
     protocol::messages,
     random::{Rng, UniformDistribution},
-    world::{ChunkSimulationEvent, Surface, WorldMap, chunk::ChunkPosition},
+    world::{
+        ChunkSubscriptions, Surface, WorldMap,
+        chunk::{Chunk, ChunkPosition},
+    },
 };
 use serde::{Deserialize, Serialize};
 
-use crate::players::{HandHits, Inventory};
+use crate::{
+    players::{HandHits, HandSystems, Inventory},
+    skybox::Clock,
+};
 
-mod duck;
+pub mod duck;
 mod pathfinding;
-mod zombie;
+pub mod zombie;
 
 pub struct MobsPlugin;
 impl Plugin for MobsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<MobSpawnEvent>()
-            .add_event::<MobDespawnEvent>()
+        app.insert_resource(Mobs::default())
+            .insert_resource(RandomMobs::default())
             .add_event::<MobDamageEvent>()
-            .insert_resource(MobMap::default())
-            .insert_resource(MobSounds::default())
             .add_plugins(duck::DuckPlugin)
             .add_plugins(zombie::ZombiePlugin)
             .add_systems(
                 Update,
                 (
-                    update_mob_map,
-                    handle_hand_hits,
+                    sync_mob_caps,
+                    spawn_hostile_random_mobs,
+                    despawn_mobs,
+                    handle_hand_hits.after(HandSystems),
                     damage_mobs,
                     play_random_sound,
                 ),
@@ -46,87 +49,316 @@ impl Plugin for MobsPlugin {
     }
 }
 
-fn update_mob_map(
-    world_map: Res<WorldMap>,
-    mut mob_map: ResMut<MobMap>,
-    mobs: Query<(Entity, &GlobalTransform), (With<Mob>, Changed<GlobalTransform>)>,
-    mut chunk_simulation_events: EventReader<ChunkSimulationEvent>,
-    mut spawn_event_writer: EventWriter<MobSpawnEvent>,
-    mut despawn_event_writer: EventWriter<MobDespawnEvent>,
-) {
-    for (entity, transform) in mobs.iter() {
-        let chunk_position = ChunkPosition::from(transform.translation());
+pub type MobId = usize;
 
-        if !mob_map.insert_or_move(chunk_position, entity) {
-            despawn_event_writer.write(MobDespawnEvent { entity });
-        }
-    }
-
-    for simulation_event in chunk_simulation_events.read() {
-        match simulation_event {
-            ChunkSimulationEvent::Start(chunk_position) => {
-                mob_map
-                    .position2entities
-                    .insert(*chunk_position, HashSet::new());
-
-                let Some(chunk) = world_map.get_chunk(chunk_position) else {
-                    continue;
-                };
-
-                let blocks = Blocks::get();
-                let surface = Surface::new(chunk, &[blocks.get_id("grass")], blocks.get_id("air"));
-                spawn_event_writer.write(MobSpawnEvent {
-                    position: *chunk_position,
-                    surface,
-                });
-            }
-            ChunkSimulationEvent::Stop(chunk_position) => {
-                let entities = mob_map.remove(chunk_position);
-                despawn_event_writer.write_batch(
-                    entities
-                        .into_iter()
-                        .map(|entity| MobDespawnEvent { entity }),
-                );
-            }
-        }
-    }
+pub struct MobConfig {
+    pub spawn_function: Box<dyn Fn(&mut EntityCommands) + Send + Sync + 'static>,
+    pub sounds: MobSoundCollection,
 }
 
 #[derive(Resource, Default)]
-struct MobSounds {
-    name2index: HashMap<String, SoundHandle>,
-    sounds: Vec<SoundCollection>,
+pub struct Mobs {
+    mobs: Vec<MobConfig>,
 }
 
-impl MobSounds {
-    fn register(&mut self, name: &str, sounds: SoundCollection) {
-        self.name2index.insert(
-            name.to_owned(),
-            SoundHandle {
-                id: self.sounds.len(),
-            },
-        );
-        self.sounds.push(sounds);
+impl Mobs {
+    pub fn add_mob(&mut self, mob_config: MobConfig) -> MobId {
+        let id = self.mobs.len();
+        self.mobs.push(mob_config);
+        id
     }
 
-    fn get_handle(&self, name: &str) -> SoundHandle {
-        self.name2index[name]
+    pub fn get_config(&self, mob_id: MobId) -> &MobConfig {
+        &self.mobs[mob_id]
     }
 }
 
-struct SoundCollection {
+// A *loose* cap on how many mobs can be spawned near a player. Each player has its own MobCap.
+// When two players move within the simulation distance of each other the maximum of their caps are
+// computed and applied to both.
+#[derive(Component, Default, Clone, Copy)]
+pub struct MobCap {
+    friendly: u32,
+    hostile: u32,
+}
+
+impl MobCap {
+    const FRIENDLY_CAPACITY: u32 = 12;
+    const HOSTILE_CAPACITY: u32 = 16;
+
+    fn at_hostile_capacity(&self) -> bool {
+        self.hostile >= Self::HOSTILE_CAPACITY
+    }
+
+    fn at_friendly_capacity(&self) -> bool {
+        self.friendly >= Self::FRIENDLY_CAPACITY
+    }
+}
+
+// TODO: This should probably be within some simulation distance and not render distance
+//
+// When players get within render distance of each other, their mob caps are synced so as to not
+// spawn double the mobs when they are close to each other.
+fn sync_mob_caps(
+    chunk_subscriptions: Res<ChunkSubscriptions>,
+    mut mob_caps: Query<&mut MobCap>,
+    chunk_positions: Query<&ChunkPosition, (With<Player>, Changed<ChunkPosition>)>,
+) {
+    for chunk_position in chunk_positions.iter() {
+        let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) else {
+            continue;
+        };
+
+        if subscribers.len() == 1 {
+            continue;
+        }
+
+        let mut max = MobCap::default();
+        for player_cap in mob_caps.iter_many(subscribers) {
+            max.friendly = player_cap.friendly.max(max.friendly);
+            max.hostile = player_cap.hostile.max(max.hostile);
+        }
+
+        for player_entity in subscribers {
+            let mut mob_cap = mob_caps.get_mut(*player_entity).unwrap();
+            *mob_cap = max;
+        }
+    }
+}
+
+#[derive(Component)]
+enum RandomMobType {
+    Hostile,
+    Friendly,
+}
+
+#[derive(Resource, Default)]
+pub struct RandomMobs {
+    hostile: Vec<(u32, MobId)>,
+    friendly: Vec<(u32, MobId)>,
+}
+
+impl RandomMobs {
+    fn add_hostile(&mut self, count: u32, mob_id: MobId) {
+        self.hostile.push((count, mob_id));
+    }
+
+    fn add_friendly(&mut self, count: u32, mob_id: MobId) {
+        self.friendly.push((count, mob_id));
+    }
+
+    fn choose_friendly(&self, rng: &mut Rng) -> (u32, MobId) {
+        let index = rng.next_usize() % self.friendly.len();
+        self.friendly[index]
+    }
+
+    fn choose_hostile(&self, rng: &mut Rng) -> (u32, MobId) {
+        let index = rng.next_usize() % self.hostile.len();
+        self.hostile[index]
+    }
+}
+
+fn spawn_friendly_random_mobs(
+    mut commands: Commands,
+    world_map: Res<WorldMap>,
+    mobs: Res<Mobs>,
+    random_mobs: Res<RandomMobs>,
+    mut player_caps: Query<(&mut MobCap, &ChunkPosition)>,
+    mut rng: Local<Rng>,
+) {
+    'outer: for (mut mob_cap, chunk_position) in player_caps.iter_mut() {
+        if mob_cap.at_friendly_capacity() {
+            continue;
+        }
+
+        // Choose a random chunk around the player
+        let radius = 5; // actual radius is 4, modulo yields 0..radius-1
+        let x = rng.next_i32() % radius * Chunk::SIZE as i32;
+        let y = rng.next_i32() % radius * Chunk::SIZE as i32;
+        let z = rng.next_i32() % radius * Chunk::SIZE as i32;
+        let spawn_chunk = *chunk_position + ChunkPosition::new(x, y, z);
+
+        let Some(chunk) = world_map.get_chunk(&spawn_chunk) else {
+            continue;
+        };
+
+        let blocks = Blocks::get();
+        let grass = blocks.get_id("grass");
+        let stone = blocks.get_id("stone");
+        let air = blocks.get_id("air");
+        let surface_blocks = [grass, stone];
+        let surface = Surface::new(chunk, &surface_blocks, air);
+
+        let (group_size, mob_id) = random_mobs.choose_friendly(&mut rng);
+
+        let mob_config = mobs.get_config(mob_id);
+
+        let x = rng.next_usize() % Chunk::SIZE;
+        let z = rng.next_usize() % Chunk::SIZE;
+        let mut spawn_position =
+            BlockPosition::from(spawn_chunk) + BlockPosition::new(x as i32, 0, z as i32);
+        for _ in 0..group_size {
+            let Some((y, _)) = surface[[x, z]] else {
+                continue 'outer;
+            };
+            spawn_position.y += y as i32;
+
+            let mut entity_commands = commands.spawn((
+                Mob { id: mob_id },
+                Transform::from_translation(spawn_position.as_dvec3() + DVec3::new(0.5, 1.0, 0.5)),
+            ));
+
+            (mob_config.spawn_function)(&mut entity_commands);
+
+            mob_cap.friendly += 1;
+
+            if mob_cap.at_friendly_capacity() {
+                continue 'outer;
+            }
+
+            spawn_position.x = rng.next_i32().abs() % Chunk::SIZE as i32;
+            spawn_position.z = rng.next_i32().abs() % Chunk::SIZE as i32;
+        }
+    }
+}
+
+fn spawn_hostile_random_mobs(
+    mut commands: Commands,
+    world_map: Res<WorldMap>,
+    mobs: Res<Mobs>,
+    clock: Res<Clock>,
+    random_mobs: Res<RandomMobs>,
+    mut player_caps: Query<(&mut MobCap, &ChunkPosition)>,
+    mut rng: Local<Rng>,
+) {
+    'outer: for (mut mob_cap, chunk_position) in player_caps.iter_mut() {
+        if mob_cap.at_hostile_capacity() {
+            continue;
+        }
+
+        // Hostile mobs are spawned in the chunks that are 2 chunks away from the chunk the player is in.
+        // This ensures no mob can be spawned directly in front of the player
+        let face = rng.next_usize() % 6;
+        let range = UniformDistribution::<i32>::new(-2, 2);
+        let offset = match face {
+            0 => IVec3::new(range.sample(&mut rng), 2, range.sample(&mut rng)),
+            1 => IVec3::new(range.sample(&mut rng), -2, range.sample(&mut rng)),
+            2 => IVec3::new(2, range.sample(&mut rng), range.sample(&mut rng)),
+            3 => IVec3::new(-2, range.sample(&mut rng), range.sample(&mut rng)),
+            4 => IVec3::new(range.sample(&mut rng), range.sample(&mut rng), 2),
+            5 => IVec3::new(range.sample(&mut rng), range.sample(&mut rng), -2),
+            _ => unreachable!(),
+        };
+        let spawn_chunk = *chunk_position + ChunkPosition::from(offset * Chunk::SIZE as i32);
+
+        // Hostile mobs are only spawned if they're underground or it's night time
+        if spawn_chunk.y < 0 || clock.is_night() {
+            continue 'outer;
+        }
+
+        let Some(chunk) = world_map.get_chunk(&spawn_chunk) else {
+            continue;
+        };
+
+        let blocks = Blocks::get();
+        let grass = blocks.get_id("grass");
+        let stone = blocks.get_id("stone");
+        let air = blocks.get_id("air");
+        let surface_blocks = [grass, stone];
+        let surface = Surface::new(chunk, &surface_blocks, air);
+
+        let (group_size, mob_id) = random_mobs.choose_hostile(&mut rng);
+
+        let mob_config = mobs.get_config(mob_id);
+
+        for _ in 0..group_size {
+            let x = rng.next_usize() % Chunk::SIZE;
+            let z = rng.next_usize() % Chunk::SIZE;
+            let mut spawn_position =
+                BlockPosition::from(spawn_chunk) + BlockPosition::new(x as i32, 0, z as i32);
+            let Some((y, _)) = surface[[x, z]] else {
+                continue 'outer;
+            };
+            spawn_position.y += y as i32;
+
+            let mut entity_commands = commands.spawn((
+                Mob { id: mob_id },
+                RandomMobType::Hostile,
+                Transform::from_translation(spawn_position.as_dvec3() + DVec3::new(0.5, 1.0, 0.5)),
+            ));
+
+            (mob_config.spawn_function)(&mut entity_commands);
+
+            mob_cap.hostile += 1;
+
+            if mob_cap.at_hostile_capacity() {
+                continue 'outer;
+            }
+        }
+    }
+}
+
+fn despawn_mobs(
+    mut commands: Commands,
+    chunk_subscriptions: Res<ChunkSubscriptions>,
+    mob_query: Query<(Entity, &GlobalTransform), With<Mob>>,
+    mut player_query: Query<(&GlobalTransform, &mut MobCap), With<Player>>,
+    despawned_mobs: Query<(Entity, &GlobalTransform, &RandomMobType), With<MobDespawn>>,
+) {
+    'outer: for (mob_entity, mob_transform) in mob_query.iter() {
+        let chunk_position = ChunkPosition::from(mob_transform.translation());
+        let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) else {
+            // If there are no subscribers, the chunk isn't loaded anymore, instantly despawn
+            commands.entity(mob_entity).insert(MobDespawn);
+            continue;
+        };
+
+        for player_entity in subscribers {
+            let (player_transform, _) = player_query.get(*player_entity).unwrap();
+            let distance = player_transform
+                .translation()
+                .distance_squared(mob_transform.translation());
+            // TODO: Should this use the simulation distance? There's really no use in having
+            // random mobs be simulated far away, and if fills up the mob cap so there won't be any
+            // near players.
+            let radius = (Chunk::SIZE as f64 * 4.0).powi(2);
+
+            if distance < radius {
+                continue 'outer;
+            }
+        }
+
+        commands.entity(mob_entity).insert(MobDespawn);
+    }
+
+    for (entity, transform, mob_type) in despawned_mobs.iter() {
+        let chunk_position = ChunkPosition::from(transform.translation());
+        if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
+            for subscriber in subscribers {
+                let (_, mut mob_cap) = player_query.get_mut(*subscriber).unwrap();
+                match mob_type {
+                    RandomMobType::Hostile => {
+                        mob_cap.hostile = mob_cap.hostile.saturating_sub(1);
+                    }
+                    RandomMobType::Friendly => {
+                        mob_cap.friendly = mob_cap.friendly.saturating_sub(1);
+                    }
+                }
+            }
+        }
+        commands.entity(entity).despawn();
+    }
+}
+
+pub struct MobSoundCollection {
     random: Vec<String>,
     damage: Vec<String>,
     death: Vec<String>,
 }
 
-#[derive(Component, Clone, Copy)]
-struct SoundHandle {
-    id: usize,
-}
-
+/// Plays a random sound from the mob's [MobSoundCollection] at random intervals
 #[derive(Component)]
-struct MobRandomSound {
+pub struct MobRandomSound {
     rng: Rng,
     timer: Timer,
 }
@@ -152,28 +384,24 @@ impl MobRandomSound {
 }
 
 #[derive(Component)]
+#[require(Transform)]
 pub struct Mob {
-    health: Health,
+    pub id: MobId,
+}
+
+#[derive(Component, Serialize, Deserialize, Clone)]
+pub struct MobHealth {
+    hearts: u32,
+    max: u32,
     invincibility: Option<Timer>,
 }
 
-impl Mob {
-    fn is_dead(&self) -> bool {
-        self.health.is_dead()
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-struct Health {
-    hearts: u32,
-    max: u32,
-}
-
-impl Health {
+impl MobHealth {
     fn new(hearts: u32) -> Self {
         Self {
             hearts,
             max: hearts,
+            invincibility: None,
         }
     }
 
@@ -188,75 +416,41 @@ impl Health {
     fn is_dead(&self) -> bool {
         self.hearts == 0
     }
-}
 
-#[derive(Event)]
-pub struct MobSpawnEvent {
-    position: ChunkPosition,
-    surface: Surface,
-}
-
-#[derive(Event)]
-pub struct MobDespawnEvent {
-    entity: Entity,
-}
-
-#[derive(Resource, Default)]
-pub struct MobMap {
-    position2entities: HashMap<ChunkPosition, HashSet<Entity>>,
-    entity2position: HashMap<Entity, ChunkPosition>,
-}
-
-impl MobMap {
-    pub fn get_entities(&self, chunk_position: &ChunkPosition) -> Option<&HashSet<Entity>> {
-        return self.position2entities.get(chunk_position);
+    fn is_invincible(&self) -> bool {
+        self.invincibility.is_some()
     }
 
-    fn insert_or_move(&mut self, chunk_position: ChunkPosition, entity: Entity) -> bool {
-        if let Some(current_chunk_pos) = self.entity2position.get(&entity) {
-            if current_chunk_pos == &chunk_position {
-                return true;
+    fn tick_invincibility(&mut self, delta: Duration) -> bool {
+        if let Some(timer) = &mut self.invincibility {
+            timer.tick(delta);
+            if timer.just_finished() {
+                self.invincibility = None;
+                true
             } else {
-                self.position2entities
-                    .get_mut(current_chunk_pos)
-                    .unwrap()
-                    .remove(&entity);
-
-                if let Some(mobs) = self.position2entities.get_mut(&chunk_position) {
-                    mobs.insert(entity);
-                } else {
-                    return false;
-                }
-
-                self.entity2position.insert(entity, chunk_position);
+                false
             }
-        } else if let Some(mobs) = self.position2entities.get_mut(&chunk_position) {
-            mobs.insert(entity);
-            self.entity2position.insert(entity, chunk_position);
         } else {
-            return false;
+            false
         }
-
-        return true;
     }
 
-    fn remove(&mut self, chunk_position: &ChunkPosition) -> HashSet<Entity> {
-        let entities = self.position2entities.remove(chunk_position).unwrap();
-        for entity in entities.iter() {
-            self.entity2position.remove(entity).unwrap();
-        }
-        entities
+    fn set_invincible(&mut self, time: f32) {
+        self.invincibility = Some(Timer::from_seconds(time, TimerMode::Once));
     }
 }
+
+#[derive(Component)]
+pub struct MobDespawn;
 
 fn handle_hand_hits(
     items: Res<Items>,
     player_inventory_query: Query<(&Inventory, &Camera), With<Player>>,
-    mut mob_hits: Query<(Entity, &Mob, &HandHits, &mut Physics), Changed<HandHits>>,
+    mut mob_hits: Query<(Entity, &Mob, &HandHits, &mut Physics, &MobHealth), Changed<HandHits>>,
     mut damage_events: EventWriter<MobDamageEvent>,
 ) {
-    for (mob_entity, mob, hits, mut physics) in mob_hits.iter_mut() {
-        if mob.invincibility.is_some() {
+    for (mob_entity, mob, hits, mut physics, health) in mob_hits.iter_mut() {
+        if health.is_invincible() {
             continue;
         }
 
@@ -293,43 +487,27 @@ fn damage_mobs(
     mut commands: Commands,
     net: Res<Server>,
     time: Res<Time>,
-    mob_sounds: Res<MobSounds>,
-    mut mobs: Query<(
+    mobs: Res<Mobs>,
+    mut mob_query: Query<(
         Entity,
         &mut Mob,
+        &mut MobHealth,
         &mut Transform,
         Option<&mut ModelColor>,
-        Option<&SoundHandle>,
     )>,
     mut damage_events: EventReader<MobDamageEvent>,
     mut rng: Local<Rng>,
 ) {
-    for (mob_entity, mob, mut mob_transform, mut maybe_color, _) in mobs.iter_mut() {
-        // Split borrowing
-        let mob = mob.into_inner();
-
-        let Some(timer) = &mut mob.invincibility else {
+    for (mob_entity, mob, mut health, mut mob_transform, mut maybe_color) in mob_query.iter_mut() {
+        if !health.is_invincible() {
             continue;
         };
 
-        if mob.health.is_dead() {
-            // We want to show the mob for a little longer than the normal invincibility time when
-            // it dies.
-            timer.set_duration(Duration::from_secs_f32(1.0));
-        }
+        let finished = health.tick_invincibility(time.delta());
 
-        if timer.elapsed_secs() == 0.0 {
-            let damage_red = ModelColor::new(1.0, 0.5, 0.5, 1.0);
-            if let Some(color) = maybe_color.as_deref_mut() {
-                *color = damage_red;
-            } else {
-                commands.entity(mob_entity).insert(damage_red);
-            }
-        }
-
-        timer.tick(time.delta());
-
-        if mob.health.is_dead() {
+        if health.is_dead()
+            && let Some(timer) = &health.invincibility
+        {
             let delta = (timer.elapsed_secs_f64() / 0.25).min(1.0);
             let mut r = mob_transform.rotation;
             r.z = 0.0;
@@ -341,8 +519,8 @@ fn damage_mobs(
             );
         }
 
-        if timer.just_finished() {
-            if mob.is_dead() {
+        if finished {
+            if health.is_dead() {
                 // Despawn the mob after its invincibility frames end
                 commands.entity(mob_entity).despawn();
             }
@@ -350,46 +528,54 @@ fn damage_mobs(
             if let Some(mut color) = maybe_color {
                 *color = ModelColor::new(1.0, 1.0, 1.0, 1.0);
             }
-
-            mob.invincibility = None;
         }
     }
 
     for damage_event in damage_events.read() {
-        let Ok((_, mut mob, transform, _, maybe_sound)) = mobs.get_mut(damage_event.mob_entity)
+        let Ok((mob_entity, mut mob, mut health, transform, mut maybe_color)) =
+            mob_query.get_mut(damage_event.mob_entity)
         else {
             continue;
         };
 
-        if mob.invincibility.is_some() {
+        if health.is_invincible() {
             continue;
         }
 
-        mob.health.damage(damage_event.damage);
-        mob.invincibility = Some(Timer::from_seconds(
-            INVINCIBILITY_TIME as f32,
-            TimerMode::Once,
-        ));
+        health.damage(damage_event.damage);
 
-        if let Some(handle) = maybe_sound {
-            let sounds = &mob_sounds.sounds[handle.id];
-            if mob.is_dead() && !sounds.death.is_empty() {
-                let sound_index = rng.next_u32() as usize % sounds.death.len();
-                net.broadcast(messages::Sound {
-                    position: Some(transform.translation),
-                    volume: 1.0,
-                    speed: 1.0,
-                    sound: sounds.death[sound_index].to_owned(),
-                });
-            } else if !sounds.damage.is_empty() {
-                let sound_index = rng.next_u32() as usize % sounds.damage.len();
-                net.broadcast(messages::Sound {
-                    position: Some(transform.translation),
-                    volume: 1.0,
-                    speed: 1.0,
-                    sound: sounds.damage[sound_index].to_owned(),
-                });
-            }
+        if health.is_dead() {
+            // Use the invincibility to keep the entity alive so a death animation can be shown.
+            health.set_invincible(1.0);
+        } else {
+            health.set_invincible(INVINCIBILITY_TIME as f32);
+        }
+
+        let damage_red = ModelColor::new(1.0, 0.5, 0.5, 1.0);
+        if let Some(color) = maybe_color.as_deref_mut() {
+            *color = damage_red;
+        } else {
+            commands.entity(mob_entity).insert(damage_red);
+        }
+
+        let sounds = &mobs.get_config(mob.id).sounds;
+
+        if health.is_dead() && !sounds.death.is_empty() {
+            let sound_index = rng.next_usize() % sounds.death.len();
+            net.broadcast(messages::Sound {
+                position: Some(transform.translation),
+                volume: 1.0,
+                speed: 1.0,
+                sound: sounds.death[sound_index].to_owned(),
+            });
+        } else if !sounds.damage.is_empty() {
+            let sound_index = rng.next_usize() % sounds.damage.len();
+            net.broadcast(messages::Sound {
+                position: Some(transform.translation),
+                volume: 1.0,
+                speed: 1.0,
+                sound: sounds.damage[sound_index].to_owned(),
+            });
         }
     }
 }
@@ -397,33 +583,35 @@ fn damage_mobs(
 fn play_random_sound(
     net: Res<Server>,
     time: Res<Time>,
-    mob_sounds: Res<MobSounds>,
-    mut mobs: Query<(
+    mobs: Res<Mobs>,
+    mut mob_query: Query<(
+        &Mob,
         &GlobalTransform,
         &ModelVisibility,
         &mut MobRandomSound,
-        &SoundHandle,
     )>,
 ) {
-    for (transform, visibility, mut random_sound, handle) in mobs.iter_mut() {
+    for (mob, transform, visibility, mut random_sound) in mob_query.iter_mut() {
         if !visibility.is_visible() {
             continue;
         }
+
+        let mob_config = mobs.get_config(mob.id);
 
         random_sound.timer.tick(time.delta());
         if random_sound.timer.just_finished() {
             random_sound.reset_timer();
 
-            let sounds = &mob_sounds.sounds[handle.id].random;
+            let sounds = &mob_config.sounds.random;
 
             if sounds.is_empty() {
                 warn!(
-                    "MobRandomSound added to entity, but the SoundHandle attached doesn't have any random sounds registered."
+                    "MobSoundPlayer is added to an entity, but the SoundHandle attached doesn't have any random sounds registered."
                 );
                 continue;
             }
 
-            let sound_index = random_sound.rng.next_u32() as usize % sounds.len();
+            let sound_index = random_sound.rng.next_usize() % sounds.len();
             net.broadcast(messages::Sound {
                 position: Some(transform.translation()),
                 volume: 1.0,

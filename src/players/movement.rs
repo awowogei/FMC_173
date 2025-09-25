@@ -7,7 +7,7 @@ use fmc::{
     prelude::*,
     protocol::messages,
     world::{
-        ChangedBlockEvent, ChunkLoadEvent, ChunkOrigin, ChunkSubscriptions, WorldMap,
+        ChangedBlockEvent, ChunkLoadEvent, ChunkSubscriptions, WorldMap,
         chunk::{Chunk, ChunkPosition},
     },
 };
@@ -161,7 +161,7 @@ fn send_block_models(
     model_map: Res<ModelMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     block_model_query: Query<&BlockPosition, With<Model>>,
-    players: Query<(Entity, Ref<ChunkOrigin>), With<Player>>,
+    players: Query<(Entity, Ref<ChunkPosition>), With<Player>>,
     mut changed_blocks: EventReader<ChangedBlockEvent>,
     mut loaded_chunks: EventReader<ChunkLoadEvent>,
     mut nearby_models: Local<Vec<u32>>,
@@ -187,12 +187,12 @@ fn send_block_models(
     };
 
     // When a player move over a chunk boundary
-    for (player_entity, player_chunk_origin) in players.iter() {
-        if !player_chunk_origin.is_changed() {
+    for (player_entity, player_chunk_position) in players.iter() {
+        if !player_chunk_position.is_changed() {
             continue;
         }
 
-        gather_models(player_chunk_origin.chunk_position, &mut nearby_models);
+        gather_models(*player_chunk_position, &mut nearby_models);
 
         if nearby_models.is_empty() {
             continue;
@@ -221,13 +221,13 @@ fn send_block_models(
         };
 
         for player_entity in subscribers.iter() {
-            let (_, player_origin) = players.get(*player_entity).unwrap();
-            if (player_origin.chunk_position - model_chunk_position)
+            let (_, player_chunk_position) = players.get(*player_entity).unwrap();
+            if (*player_chunk_position - model_chunk_position)
                 .abs()
                 .cmple(IVec3::splat(Chunk::SIZE as i32))
                 .all()
             {
-                gather_models(player_origin.chunk_position, &mut nearby_models);
+                gather_models(*player_chunk_position, &mut nearby_models);
                 net.send_one(
                     *player_entity,
                     messages::PluginData {
@@ -246,13 +246,13 @@ fn send_block_models(
         };
 
         for player_entity in subscribers.iter() {
-            let (_, player_origin) = players.get(*player_entity).unwrap();
-            if (player_origin.chunk_position - new_chunk.position)
+            let (_, player_chunk_position) = players.get(*player_entity).unwrap();
+            if (*player_chunk_position - new_chunk.position)
                 .abs()
                 .cmple(IVec3::splat(Chunk::SIZE as i32))
                 .all()
             {
-                gather_models(player_origin.chunk_position, &mut nearby_models);
+                gather_models(*player_chunk_position, &mut nearby_models);
                 net.send_one(
                     *player_entity,
                     messages::PluginData {
