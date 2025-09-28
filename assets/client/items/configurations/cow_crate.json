@@ -1,0 +1,6 @@
+{
+    "name": "Cow crate",
+    "image": "cow_crate.png",
+    "equip_model": "cow_crate",
+    "stack_size": 64
+}

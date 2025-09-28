@@ -1,10 +1,8 @@
 use fmc::{
-    bevy::math::DVec3,
-    blocks::{BlockId, Blocks},
-    items::{ItemId, Items},
-    players::{Camera, Player, Target, Targets},
+    blocks::Blocks,
+    items::ItemId,
+    players::{Camera, Player, Targets},
     prelude::*,
-    world::WorldMap,
 };
 
 use crate::mobs::{Mob, MobId, Mobs};
@@ -38,14 +36,12 @@ struct MobCrate {
 
 fn register_crates(
     mut commands: Commands,
-    blocks: Res<Blocks>,
-    items: Res<Items>,
-    mut mob_crates: ResMut<MobCrates>,
+    mob_crates: Res<MobCrates>,
     mut item_registry: ResMut<ItemRegistry>,
 ) {
     for (item_id, mob_id) in mob_crates.crates.iter().cloned() {
         item_registry.insert(
-            items.get_id("zombie_crate").unwrap(),
+            item_id,
             commands
                 .spawn((ItemUses::default(), MobCrate { mob_id }))
                 .id(),
@@ -55,7 +51,6 @@ fn register_crates(
 
 fn use_crate(
     mut commands: Commands,
-    world_map: Res<WorldMap>,
     mobs: Res<Mobs>,
     player_query: Query<(&GlobalTransform, &Camera, &Targets), With<Player>>,
     mut crate_uses: Query<(&mut ItemUses, &MobCrate), Changed<ItemUses>>,

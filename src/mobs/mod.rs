@@ -23,6 +23,7 @@ use crate::{
     skybox::Clock,
 };
 
+pub mod cow;
 pub mod duck;
 mod pathfinding;
 pub mod zombie;
@@ -35,11 +36,13 @@ impl Plugin for MobsPlugin {
             .add_event::<MobDamageEvent>()
             .add_plugins(duck::DuckPlugin)
             .add_plugins(zombie::ZombiePlugin)
+            .add_plugins(cow::CowPlugin)
             .add_systems(
                 Update,
                 (
                     sync_mob_caps,
                     spawn_hostile_random_mobs,
+                    spawn_friendly_random_mobs,
                     despawn_mobs,
                     handle_hand_hits.after(HandSystems),
                     damage_mobs,
@@ -350,6 +353,7 @@ fn despawn_mobs(
     }
 }
 
+#[derive(Default)]
 pub struct MobSoundCollection {
     random: Vec<String>,
     damage: Vec<String>,
