@@ -334,7 +334,7 @@ fn break_blocks(
                 block_data: None,
             });
 
-            let (dropped_item_id, count) = match block_config.drop(tool_config) {
+            let (dropped_item_id, count) = match block_config.drop(&mut rng, tool_config) {
                 Some(drop) => drop,
                 None => continue,
             };

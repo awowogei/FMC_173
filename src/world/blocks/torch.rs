@@ -3,6 +3,7 @@ use fmc::{
     blocks::{BlockRotation, Blocks},
     items::{Item, ItemStack, Items},
     prelude::*,
+    random::Rng,
     world::{BlockUpdate, ChangedBlockEvent},
 };
 
@@ -24,6 +25,7 @@ fn fragile_break(
     items: Res<Items>,
     mut changed_blocks: EventReader<ChangedBlockEvent>,
     mut block_updates: EventWriter<BlockUpdate>,
+    mut rng: Local<Rng>,
 ) {
     for changed_block in changed_blocks.read() {
         for (block, block_rotation) in [
@@ -60,7 +62,7 @@ fn fragile_break(
                     });
 
                     let block_config = Blocks::get().get_config(&torch_id);
-                    let (dropped_item_id, count) = match block_config.drop(None) {
+                    let (dropped_item_id, count) = match block_config.drop(&mut rng, None) {
                         Some(drop) => drop,
                         None => continue,
                     };
