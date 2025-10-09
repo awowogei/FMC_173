@@ -57,6 +57,8 @@ enum GameMode {
     Spectator,
 }
 
+fmc::register_plugin!(MovementPlugin);
+
 impl fmc::Plugin for MovementPlugin {
     fn update(&mut self) {
         if !self.initialized {
@@ -143,8 +145,6 @@ impl fmc::Plugin for MovementPlugin {
         Self::default()
     }
 }
-
-fmc::register_plugin!(MovementPlugin);
 
 impl MovementPlugin {
     fn update_keyboard_input(&mut self) {

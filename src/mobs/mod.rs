@@ -1,10 +1,10 @@
-use std::time::Duration;
+use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 
 use fmc::{
-    bevy::math::{DQuat, DVec3},
+    bevy::math::{DQuat, DVec2, DVec3},
     blocks::{BlockPosition, Blocks},
     items::Items,
-    models::{ModelColor, ModelVisibility},
+    models::{Model, ModelColor, ModelVisibility, Models},
     networking::Server,
     physics::Physics,
     players::{Camera, Player},
@@ -47,6 +47,7 @@ impl Plugin for MobsPlugin {
                     handle_hand_hits.after(HandSystems),
                     damage_mobs,
                     play_random_sound,
+                    look_around,
                 ),
             );
     }
@@ -196,11 +197,12 @@ fn spawn_friendly_random_mobs(
 
         let mob_config = mobs.get_config(mob_id);
 
-        let x = rng.next_usize() % Chunk::SIZE;
-        let z = rng.next_usize() % Chunk::SIZE;
-        let mut spawn_position =
-            BlockPosition::from(spawn_chunk) + BlockPosition::new(x as i32, 0, z as i32);
         for _ in 0..group_size {
+            let x = rng.next_usize() % Chunk::SIZE;
+            let z = rng.next_usize() % Chunk::SIZE;
+            let mut spawn_position =
+                BlockPosition::from(spawn_chunk) + BlockPosition::new(x as i32, 0, z as i32);
+
             let Some((y, _)) = surface[[x, z]] else {
                 continue 'outer;
             };
@@ -208,6 +210,7 @@ fn spawn_friendly_random_mobs(
 
             let mut entity_commands = commands.spawn((
                 Mob { id: mob_id },
+                RandomMobType::Friendly,
                 Transform::from_translation(spawn_position.as_dvec3() + DVec3::new(0.5, 1.0, 0.5)),
             ));
 
@@ -279,6 +282,7 @@ fn spawn_hostile_random_mobs(
             let z = rng.next_usize() % Chunk::SIZE;
             let mut spawn_position =
                 BlockPosition::from(spawn_chunk) + BlockPosition::new(x as i32, 0, z as i32);
+
             let Some((y, _)) = surface[[x, z]] else {
                 continue 'outer;
             };
@@ -622,6 +626,140 @@ fn play_random_sound(
                 speed: 1.0,
                 sound: sounds[sound_index].to_owned(),
             });
+        }
+    }
+}
+
+#[derive(Component, Default)]
+struct MobHead {
+    position: DVec3,
+    target: Option<DVec3>,
+    // Max rotation for the head
+    max_yaw: f32,
+    max_pitch: f32,
+    follow_player: bool,
+    // Goal rotation
+    goal_yaw: f32,
+    goal_pitch: f32,
+    // Current head rotation
+    yaw: f32,
+    pitch: f32,
+}
+
+impl MobHead {
+    pub fn new(head_position: DVec3, max_yaw: f32, max_pitch: f32) -> Self {
+        Self {
+            position: head_position,
+            target: None,
+            max_yaw,
+            max_pitch,
+            follow_player: false,
+            goal_yaw: 0.0,
+            goal_pitch: 0.0,
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
+
+    pub fn look_at(&mut self, position: Option<DVec3>) {
+        self.target = position;
+    }
+}
+
+fn look_around(
+    net: Res<Server>,
+    time: Res<Time>,
+    models: Res<Models>,
+    chunk_subscriptions: Res<ChunkSubscriptions>,
+    mut mob_query: Query<(Entity, &mut Transform, &mut MobHead, &Physics, &Model), With<Mob>>,
+    mut rng: Local<Rng>,
+) {
+    for (entity, mut transform, mut head, physics, model) in mob_query.iter_mut() {
+        // First we determine which way the head should be rotated. If the mob is standing still,
+        // we also rotate the body.
+        if let Some(target) = head.target {
+            let head_position = transform.translation + head.position;
+            let mut head_transform = Transform::from_translation(head_position);
+            head_transform.look_at(target, DVec3::Y);
+            let (yaw, pitch, _) = head_transform.rotation.to_euler(EulerRot::YXZ);
+            head.goal_yaw = (yaw as f32).max(-head.max_yaw).min(head.max_yaw);
+            head.goal_pitch = (pitch as f32).max(-head.max_pitch).min(head.max_pitch);
+        } else if rng.next_f32() < 0.01 {
+            if physics.velocity == DVec3::ZERO {
+                let head_yaw = UniformDistribution::new(-FRAC_PI_2, FRAC_PI_2).sample(&mut rng);
+                head.goal_yaw += head_yaw;
+                head.goal_pitch = 0.0;
+            } else {
+                // While the mob is moving, rotate the head in random directions
+                let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+                let head_yaw =
+                    UniformDistribution::new(-head.max_yaw, head.max_yaw).sample(&mut rng);
+
+                head.goal_yaw = yaw as f32 + head_yaw;
+                head.goal_pitch = 0.0;
+            }
+        }
+
+        // Determine the amount of rotation needed to arrive at the goal.
+        let remaining_yaw = transform
+            // We want the rotation relative to [1.0, 0.0]
+            .right()
+            .xz()
+            .as_vec2()
+            // Vec3 rotate clockwise because -Vec3::Z is forwards while Vec2 rotates counter
+            // clockwise, so it needs to be inverted.
+            .mul(Vec2::new(1.0, -1.0))
+            .angle_to(Vec2::from_angle(head.goal_yaw - head.yaw));
+        let remaining_pitch = head.goal_pitch - head.pitch;
+
+        if remaining_yaw.abs() < f32::EPSILON && remaining_pitch.abs() < f32::EPSILON {
+            continue;
+        }
+
+        // Limit the amount of rotation per tick
+        let yaw = (time.delta_secs() * std::f32::consts::PI)
+            .min(remaining_yaw.abs())
+            .copysign(remaining_yaw);
+        let pitch = (time.delta_secs() * std::f32::consts::PI)
+            .min(remaining_pitch.abs())
+            .copysign(remaining_pitch);
+
+        if (head.yaw + yaw < head.max_yaw && head.yaw + yaw > -head.max_yaw)
+            || head.pitch.abs() < head.goal_pitch.abs()
+        {
+            head.yaw = (head.yaw + yaw).clamp(-head.max_yaw, head.max_yaw);
+            head.pitch = (head.pitch + pitch).clamp(-head.max_pitch, head.max_pitch);
+
+            let Model::Asset(model_id) = model else {
+                unreachable!()
+            };
+
+            let model_config = models.get_config(model_id);
+
+            let Some(bone) = model_config.bones.get("head") else {
+                warn!("Missing 'head' bone");
+                continue;
+            };
+
+            let chunk_position = ChunkPosition::from(transform.translation);
+            let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) else {
+                continue;
+            };
+
+            let rotation = Quat::from_rotation_y(head.yaw) * Quat::from_rotation_x(head.pitch);
+
+            net.send_one(
+                *subscribers.iter().take(1).next().unwrap(),
+                messages::ModelUpdateTransform {
+                    model_id: entity.index(),
+                    bone: Some(*bone),
+                    position: DVec3::ZERO,
+                    rotation,
+                    scale: Vec3::ONE,
+                },
+            );
+        } else if physics.velocity == DVec3::ZERO {
+            transform.rotation = transform.rotation * DQuat::from_rotation_y(yaw as f64);
         }
     }
 }

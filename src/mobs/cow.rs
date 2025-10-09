@@ -1,26 +1,31 @@
 use std::collections::HashSet;
 
 use fmc::{
-    bevy::math::DVec3,
+    bevy::math::{DQuat, DVec3},
     blocks::{BlockPosition, Blocks},
     database::Database,
     items::Items,
     models::{AnimationPlayer, Model, ModelVisibility, Models},
+    networking::Server,
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
+    protocol::messages,
     random::{Rng, UniformDistribution},
-    world::WorldMap,
+    world::{
+        WorldMap,
+        chunk::{Chunk, ChunkPosition},
+    },
 };
 
 use crate::{
     items::spawn_crates::MobCrates,
-    players::{GameMode, HandHits, PlayerDamageEvent},
-    skybox::Clock,
+    players::{GameMode, HandHits},
 };
 
 use super::{
-    Mob, MobConfig, MobHealth, MobSoundCollection, Mobs, RandomMobs, pathfinding::PathFinder,
+    Mob, MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs,
+    pathfinding::PathFinder,
 };
 
 pub struct CowPlugin;
@@ -38,7 +43,7 @@ struct Cow {
 }
 
 impl Cow {
-    const EYES: DVec3 = DVec3::new(0.0, 1.65, 0.0);
+    const EYES: DVec3 = DVec3::new(0.0, 1.375, -0.75);
 
     fn new() -> Self {
         let mut cow = Self {
@@ -52,7 +57,7 @@ impl Cow {
 
     fn reset_wander_timer(&mut self) {
         self.wander_timer = Timer::from_seconds(
-            UniformDistribution::new(2.0, 8.0).sample(&mut self.rng),
+            UniformDistribution::new(2.0, 5.0).sample(&mut self.rng),
             TimerMode::Once,
         );
     }
@@ -126,7 +131,16 @@ fn setup(
         animation_player.set_idle_animation(Some(idle_animation));
         animation_player.set_transition_time(0.15);
 
-        commands.insert((CowBundle::default(), Model::Asset(cow_id), animation_player));
+        commands.insert((
+            CowBundle::default(),
+            Model::Asset(cow_id),
+            animation_player,
+            super::MobHead::new(
+                Cow::EYES,
+                std::f32::consts::FRAC_PI_8,
+                std::f32::consts::FRAC_PI_8,
+            ),
+        ));
     };
 
     let sounds = MobSoundCollection::default();
@@ -158,110 +172,70 @@ fn find_wander_location(
             continue;
         }
 
+        if cow.wander_timer.finished() && !path_finder.has_goal() {
+            cow.reset_wander_timer();
+        }
+
         cow.wander_timer.tick(time.delta());
         if !cow.wander_timer.just_finished() {
             continue;
         }
 
-        let mut already_visited = HashSet::new();
-        let mut potential_blocks: Vec<(BlockPosition, u32, u32)> = Vec::new();
-
         let blocks = Blocks::get();
-        let water_id = blocks.get_id("surface_water");
+        let grass_id = blocks.get_id("grass");
 
-        let start = BlockPosition::from(transform.translation());
-        potential_blocks.push((start, u32::MIN, 0));
-        already_visited.insert(start);
+        let wander_distance = UniformDistribution::new(-8i32, 8);
 
-        let max_distance = UniformDistribution::<u32>::new(1, 8).sample(&mut rng);
+        let mut potential_blocks = Vec::with_capacity(10);
+        for _ in 0..10 {
+            let x = wander_distance.sample(&mut rng);
+            let y = wander_distance.sample(&mut rng);
+            let z = wander_distance.sample(&mut rng);
+            let block_position =
+                BlockPosition::from(transform.translation()) + BlockPosition::new(x, y, z);
 
-        let mut index = 0;
-        while let Some((block_position, mut score, mut distance)) =
-            potential_blocks.get(index).cloned()
-        {
-            index += 1;
-
-            distance += 1;
-            if distance > max_distance {
+            let chunk_position = ChunkPosition::from(block_position);
+            let Some(chunk) = world_map.get_chunk(&chunk_position) else {
                 continue;
-            }
+            };
 
-            for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z] {
-                let block_position = block_position + offset;
+            // TODO: This is much the same as [fmc::world::Surface]. It is too expensive to
+            // construct for each position, but maybe it should be precomputed and stored in the
+            // chunk? There are many things that make use of it.
+            let chunk_index_xz = block_position.as_chunk_index() & !0b1111;
+            for y in (0..Chunk::SIZE).rev() {
+                let chunk_index = chunk_index_xz | y;
+                let block_id = chunk[chunk_index];
 
-                if !already_visited.insert(block_position) {
-                    continue;
-                }
-
-                // Always increase score, to always move as far as possible
-                score += 1;
-
-                let Some(block_id) = world_map.get_block(block_position) else {
-                    continue;
-                };
                 let block_config = blocks.get_config(&block_id);
-
-                if block_config.is_solid() {
-                    // Try to jump one block up
-                    let above = block_position + IVec3::Y;
-                    let block_config = if let Some(block_id) = world_map.get_block(above) {
-                        blocks.get_config(&block_id)
-                    } else {
-                        continue;
-                    };
-                    if !block_config.is_solid() {
-                        potential_blocks.push((above, score, distance));
-                    }
-                } else if block_id == water_id {
-                    // If in water, stay in the shallows
-                    for step in 1..4i32 {
-                        let below = block_position - IVec3::Y * step;
-                        let block_config = if let Some(block_id) = world_map.get_block(below) {
-                            blocks.get_config(&block_id)
-                        } else {
-                            break;
-                        };
-                        if block_config.is_solid() {
-                            potential_blocks.push((block_position, score, distance));
-                            break;
-                        }
-                    }
-                    potential_blocks.push((block_position, score, distance));
-                } else {
-                    for step in 1..=2i32 {
-                        let below = block_position - IVec3::Y * step;
-                        let block_config = if let Some(block_id) = world_map.get_block(below) {
-                            blocks.get_config(&block_id)
-                        } else {
-                            break;
-                        };
-
-                        if block_config.is_solid() {
-                            potential_blocks.push((below + IVec3::Y, score, distance));
-                            break;
-                        } else {
-                            // Prefer walking down, will hopefully lead to the shore (or a hole if
-                            // unlucky)
-                            score += 1;
-                        }
-                    }
+                if !blocks.get_config(&block_id).is_solid() {
+                    continue;
                 }
+
+                let mut score = 0;
+                if block_id == grass_id {
+                    score += 1
+                };
+
+                // Stay out of caves
+                if chunk_position.y + y as i32 > 0 {
+                    score += 1;
+                }
+
+                let position =
+                    BlockPosition::from(chunk_position) + BlockPosition::from(chunk_index + 1);
+                potential_blocks.push((score, position));
+                break;
             }
         }
 
-        let mut best_position = None;
-        let mut max_score = 0;
-        for (block_position, score, _distance) in potential_blocks {
-            if score > max_score {
-                best_position = Some(block_position);
-                max_score = score;
-            }
-        }
+        potential_blocks.sort_by_key(|(score, _)| *score);
+        let Some((_, best_position)) = potential_blocks.last() else {
+            return;
+        };
 
-        if let Some(best_position) = best_position {
-            let goal = best_position.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
-            path_finder.find_path(&world_map, transform.translation(), goal);
-        }
+        let goal = best_position.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
+        path_finder.find_path(&world_map, transform.translation(), goal);
     }
 }
 
@@ -272,35 +246,30 @@ const WALKING_ACCELERATION: f64 = 30.0;
 
 fn move_to_pathfinding_goal(
     time: Res<Time>,
-    mut cows: Query<
-        (
-            &Mob,
-            &MobHealth,
-            &mut Cow,
-            &mut PathFinder,
-            &mut Physics,
-            &mut Transform,
-        ),
-        Or<(Changed<GlobalTransform>, Changed<PathFinder>)>,
-    >,
+    mut cows: Query<(
+        &MobHealth,
+        &mut Cow,
+        &mut PathFinder,
+        &mut Physics,
+        &mut Transform,
+        &mut MobHead,
+    )>,
 ) {
-    for (mob, health, mut cow, mut path_finder, mut physics, mut transform) in cows.iter_mut() {
+    for (health, mut cow, mut path_finder, mut physics, mut transform, mut mob_head) in
+        cows.iter_mut()
+    {
         // Mob entities are kept for a little while after death to show a death pose
         if health.is_dead() {
             continue;
         }
 
         if let Some(next_position) = path_finder.next_node(transform.translation) {
-            let new_rotation = transform.looking_at(next_position, DVec3::Y).rotation;
-            transform.rotation = transform
-                .rotation
-                .slerp(new_rotation, time.delta_secs_f64() / 0.20);
-            let direction = transform.forward();
-
-            // Only rotate around the Y-axis
-            transform.rotation.x = 0.0;
-            transform.rotation.z = 0.0;
-            transform.rotation = transform.rotation.normalize();
+            let direction = (next_position - transform.translation)
+                .with_y(0.0)
+                .normalize();
+            let rotation = DQuat::from_rotation_arc(DVec3::NEG_Z, direction);
+            let max_rotation = time.delta_secs_f64() * std::f64::consts::TAU;
+            transform.rotation = transform.rotation.rotate_towards(rotation, max_rotation);
 
             // TODO: Should not jump out of water, accelerate only so it looks more like a step up.
             if next_position.y - transform.translation.y > 0.1
@@ -317,11 +286,17 @@ fn move_to_pathfinding_goal(
                 acceleration *= 0.1;
             }
 
+            // if let Some(goal) = path_finder.goal() {
+            //     let mut goal = goal.as_dvec3();
+            //     // Keep the head level
+            //     goal.y = transform.translation.y + Cow::EYES.y;
+            //     mob_head.look_at(Some(goal));
+            // } else {
+            //     mob_head.look_at(None);
+            // }
+
             // TODO: Needs states for when grounded/swimming/falling and differing speeds.
-            physics.acceleration.x += direction.x * acceleration;
-            physics.acceleration.z += direction.z * acceleration;
-        } else {
-            cow.reset_wander_timer();
+            physics.acceleration += transform.forward() * acceleration;
         }
     }
 }

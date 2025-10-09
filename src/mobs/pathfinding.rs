@@ -28,6 +28,18 @@ impl PathFinder {
         };
     }
 
+    pub fn has_goal(&self) -> bool {
+        !self.path.is_empty()
+    }
+
+    pub fn goal(&self) -> Option<BlockPosition> {
+        if !self.path.is_empty() {
+            Some(self.goal)
+        } else {
+            None
+        }
+    }
+
     pub fn find_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
         let block_start = BlockPosition::from(start);
         let block_goal = BlockPosition::from(goal);
@@ -226,10 +238,10 @@ impl PathFinder {
     fn get_move_cost(world_map: &WorldMap, position: BlockPosition) -> f32 {
         if let Some(block_id) = world_map.get_block(position) {
             let block_config = Blocks::get().get_config(&block_id);
-            if block_config.is_solid() {
-                f32::INFINITY
+            if let Some(drag) = block_config.drag() {
+                drag.max_element() as f32
             } else {
-                block_config.drag().max_element() as f32
+                f32::INFINITY
             }
         } else {
             f32::INFINITY
