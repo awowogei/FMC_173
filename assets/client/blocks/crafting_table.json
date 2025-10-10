@@ -12,7 +12,7 @@
     "tools": ["axe"],
     "drop": {
         "requires_tool": false,
-        "drop": "crafting_table"
+        "item": "crafting_table"
     },
     "sound": {
         "place": [

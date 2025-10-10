@@ -62,13 +62,12 @@ fn fragile_break(
                     });
 
                     let block_config = Blocks::get().get_config(&torch_id);
-                    let (dropped_item_id, count) = match block_config.drop(&mut rng, None) {
-                        Some(drop) => drop,
-                        None => continue,
+                    let Some(dropped_item_id) = block_config.drop(None) else {
+                        continue;
                     };
 
                     let item_config = items.get_config(&dropped_item_id);
-                    let item_stack = ItemStack::new(item_config, count);
+                    let item_stack = ItemStack::new(item_config, 1);
 
                     commands.spawn((
                         DroppedItem::new(item_stack),

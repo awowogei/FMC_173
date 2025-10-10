@@ -11,7 +11,7 @@
     },
     "drop": {
         "requires_tool": false,
-        "drop": "dirt"
+        "item": "dirt"
     },
     "sound": {
         "place": [

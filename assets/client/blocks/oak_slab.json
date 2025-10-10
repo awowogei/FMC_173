@@ -9,7 +9,7 @@
     "tools": ["axe"],
     "drop": {
         "requires_tool": false,
-        "drop": "oak_slab"
+        "item": "oak_slab"
     },
     "light_attenuation": 1,
     "sound": {

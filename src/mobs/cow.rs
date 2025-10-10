@@ -207,7 +207,6 @@ fn find_wander_location(
                 let chunk_index = chunk_index_xz | y;
                 let block_id = chunk[chunk_index];
 
-                let block_config = blocks.get_config(&block_id);
                 if !blocks.get_config(&block_id).is_solid() {
                     continue;
                 }

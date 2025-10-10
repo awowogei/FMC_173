@@ -13,7 +13,7 @@
     "hardness": 9,
     "drop": {
         "requires_tool": true,
-        "drop": "diamond_block"
+        "item": "diamond_block"
     },
     "sound": {
         "place": [

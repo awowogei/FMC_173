@@ -6,7 +6,7 @@
     "hardness": 1,
     "drop": {
         "requires_tool": false,
-        "drop": "oak_door"
+        "item": "oak_door"
     },
     "placement": {
         "rotatable": true

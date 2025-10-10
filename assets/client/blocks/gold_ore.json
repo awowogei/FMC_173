@@ -13,7 +13,7 @@
     "hardness": 9,
     "drop": {
         "requires_tool": true,
-        "drop": "gold_ore"
+        "item": "gold_ore"
     },
     "sound": {
         "place": [

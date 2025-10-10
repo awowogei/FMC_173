@@ -12,7 +12,7 @@
     "tools": ["axe"],
     "drop": {
         "requires_tool": false,
-        "drop": "chest"
+        "item": "chest"
     },
     "placement": {
         "rotatable": true

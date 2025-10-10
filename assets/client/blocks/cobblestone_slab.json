@@ -10,7 +10,7 @@
     "hardness": 6,
     "drop": {
         "requires_tool": true,
-        "drop": "cobblestone_slab"
+        "item": "cobblestone_slab"
     },
     "light_attenuation": 1,
     "sound": {

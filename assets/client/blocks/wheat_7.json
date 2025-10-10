@@ -5,7 +5,7 @@
     "material": "transparent",
     "hardness": 0,
     "drop": {
-        "drop": "wheat"
+        "item": "wheat"
     },
     "light_attenuation": 1,
     "hitbox": {

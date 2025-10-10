@@ -20,7 +20,7 @@
     ],
     "drop": {
         "requires_tool": false,
-        "drop": "ladder"
+        "item": "ladder"
     },
     "quads": [
         {

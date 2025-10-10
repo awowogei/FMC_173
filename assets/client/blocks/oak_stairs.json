@@ -20,7 +20,7 @@
     "tools": ["axe"],
     "drop": {
         "requires_tool": false,
-        "drop": "oak_stairs"
+        "item": "oak_stairs"
     },
     "sound": {
         "place": [

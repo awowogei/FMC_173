@@ -12,7 +12,7 @@
     "tools": ["axe"],
     "drop": {
         "requires_tool": false,
-        "drop": "oak_planks"
+        "item": "oak_planks"
     },
     "sound": {
         "place": [

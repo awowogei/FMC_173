@@ -12,7 +12,7 @@
     "tools": ["pickaxe"],
     "drop": {
         "requires_tool": true,
-        "drop": "iron_ore"
+        "item": "iron_ore"
     },
     "hardness": 12,
     "sound": {

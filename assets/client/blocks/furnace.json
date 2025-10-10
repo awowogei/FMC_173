@@ -12,7 +12,7 @@
     "tools": ["pickaxe"],
     "drop": {
         "requires_tool": true,
-        "drop": "furnace"
+        "item": "furnace"
     },
     "placement": {
         "rotatable": true

@@ -334,13 +334,12 @@ fn break_blocks(
                 block_data: None,
             });
 
-            let (dropped_item_id, count) = match block_config.drop(&mut rng, tool_config) {
-                Some(drop) => drop,
-                None => continue,
+            let Some(dropped_item_id) = block_config.drop(tool_config) else {
+                continue;
             };
 
             let item_config = items.get_config(&dropped_item_id);
-            let item_stack = ItemStack::new(item_config, count);
+            let item_stack = ItemStack::new(item_config, 1);
 
             commands.spawn((
                 DroppedItem::new(item_stack),

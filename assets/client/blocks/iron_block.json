@@ -13,7 +13,7 @@
     "hardness": 9,
     "drop": {
         "requires_tool": true,
-        "drop": "iron_block"
+        "item": "iron_block"
     },
     "sound": {
         "place": [

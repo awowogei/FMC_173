@@ -13,7 +13,7 @@
     "hardness": 6,
     "drop": {
         "requires_tool": true,
-        "drop": "cobblestone"
+        "item": "cobblestone"
     },
     "sound": {
         "place": [
