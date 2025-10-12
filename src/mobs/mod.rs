@@ -3,7 +3,7 @@ use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 use fmc::{
     bevy::math::{DQuat, DVec2, DVec3},
     blocks::{BlockPosition, Blocks},
-    items::Items,
+    items::{DropTable, ItemStack, Items},
     models::{Model, ModelColor, ModelVisibility, Models},
     networking::Server,
     physics::Physics,
@@ -19,6 +19,7 @@ use fmc::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    items::DroppedItem,
     players::{HandHits, HandSystems, Inventory},
     skybox::Clock,
 };
@@ -58,22 +59,23 @@ pub type MobId = usize;
 pub struct MobConfig {
     pub spawn_function: Box<dyn Fn(&mut EntityCommands) + Send + Sync + 'static>,
     pub sounds: MobSoundCollection,
+    pub drop_table: DropTable,
 }
 
 #[derive(Resource, Default)]
 pub struct Mobs {
-    mobs: Vec<MobConfig>,
+    configs: Vec<MobConfig>,
 }
 
 impl Mobs {
     pub fn add_mob(&mut self, mob_config: MobConfig) -> MobId {
-        let id = self.mobs.len();
-        self.mobs.push(mob_config);
+        let id = self.configs.len();
+        self.configs.push(mob_config);
         id
     }
 
     pub fn get_config(&self, mob_id: MobId) -> &MobConfig {
-        &self.mobs[mob_id]
+        &self.configs[mob_id]
     }
 }
 
@@ -496,6 +498,7 @@ fn damage_mobs(
     net: Res<Server>,
     time: Res<Time>,
     mobs: Res<Mobs>,
+    items: Res<Items>,
     mut mob_query: Query<(
         Entity,
         &mut Mob,
@@ -552,9 +555,30 @@ fn damage_mobs(
 
         health.damage(damage_event.damage);
 
+        let config = mobs.get_config(mob.id);
+
         if health.is_dead() {
-            // Use the invincibility to keep the entity alive so a death animation can be shown.
+            // Use the invincibility to keep the entity alive so the death animation can be shown.
             health.set_invincible(1.0);
+
+            if let Some((item_id, count)) = config.drop_table.drop(&mut rng) {
+                let item_config = items.get_config(&item_id);
+                let item_stack = ItemStack::new(item_config, 1);
+                for i in 0..count {
+                    let random_direction = (rng.next_f32() * std::f32::consts::TAU) as f64;
+                    let velocity_x = random_direction.sin() as f64 * 15.0 * rng.next_f32() as f64;
+                    let velocity_z = random_direction.cos() as f64 * 15.0 * rng.next_f32() as f64;
+                    let velocity_y = 8.5;
+                    commands.spawn((
+                        DroppedItem::new(item_stack.clone()),
+                        transform.clone(),
+                        Physics {
+                            velocity: DVec3::new(velocity_x, velocity_y, velocity_z),
+                            ..default()
+                        },
+                    ));
+                }
+            }
         } else {
             health.set_invincible(INVINCIBILITY_TIME as f32);
         }
@@ -566,23 +590,21 @@ fn damage_mobs(
             commands.entity(mob_entity).insert(damage_red);
         }
 
-        let sounds = &mobs.get_config(mob.id).sounds;
-
-        if health.is_dead() && !sounds.death.is_empty() {
-            let sound_index = rng.next_usize() % sounds.death.len();
+        if health.is_dead() && !config.sounds.death.is_empty() {
+            let sound_index = rng.next_usize() % config.sounds.death.len();
             net.broadcast(messages::Sound {
                 position: Some(transform.translation),
                 volume: 1.0,
                 speed: 1.0,
-                sound: sounds.death[sound_index].to_owned(),
+                sound: config.sounds.death[sound_index].to_owned(),
             });
-        } else if !sounds.damage.is_empty() {
-            let sound_index = rng.next_usize() % sounds.damage.len();
+        } else if !config.sounds.damage.is_empty() {
+            let sound_index = rng.next_usize() % config.sounds.damage.len();
             net.broadcast(messages::Sound {
                 position: Some(transform.translation),
                 volume: 1.0,
                 speed: 1.0,
-                sound: sounds.damage[sound_index].to_owned(),
+                sound: config.sounds.damage[sound_index].to_owned(),
             });
         }
     }
@@ -671,10 +693,24 @@ fn look_around(
     time: Res<Time>,
     models: Res<Models>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
-    mut mob_query: Query<(Entity, &mut Transform, &mut MobHead, &Physics, &Model), With<Mob>>,
+    mut mob_query: Query<
+        (
+            Entity,
+            &mut Transform,
+            &mut MobHead,
+            &Physics,
+            &Model,
+            &MobHealth,
+        ),
+        With<Mob>,
+    >,
     mut rng: Local<Rng>,
 ) {
-    for (entity, mut transform, mut head, physics, model) in mob_query.iter_mut() {
+    for (entity, mut transform, mut head, physics, model, health) in mob_query.iter_mut() {
+        if health.is_dead() {
+            return;
+        }
+
         // First we determine which way the head should be rotated. If the mob is standing still,
         // we also rotate the body.
         if let Some(target) = head.target {

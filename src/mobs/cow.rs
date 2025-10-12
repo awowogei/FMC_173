@@ -4,7 +4,7 @@ use fmc::{
     bevy::math::{DQuat, DVec3},
     blocks::{BlockPosition, Blocks},
     database::Database,
-    items::Items,
+    items::{DropTable, Items},
     models::{AnimationPlayer, Model, ModelVisibility, Models},
     networking::Server,
     physics::{Collider, Physics},
@@ -145,9 +145,13 @@ fn setup(
 
     let sounds = MobSoundCollection::default();
 
+    let leather = items.get_id("leather").unwrap();
+    let drop_table = DropTable::new(1.0, &vec![1.0], &vec![(leather, 0, 2)]).unwrap();
+
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_function),
         sounds,
+        drop_table,
     });
 
     random_mobs.add_friendly(4, mob_id);
@@ -172,7 +176,7 @@ fn find_wander_location(
             continue;
         }
 
-        if cow.wander_timer.finished() && !path_finder.has_goal() {
+        if cow.wander_timer.is_finished() && !path_finder.has_goal() {
             cow.reset_wander_timer();
         }
 
@@ -221,8 +225,9 @@ fn find_wander_location(
                     score += 1;
                 }
 
-                let position =
-                    BlockPosition::from(chunk_position) + BlockPosition::from(chunk_index + 1);
+                let position = BlockPosition::from(chunk_position)
+                    + BlockPosition::from(chunk_index)
+                    + BlockPosition::new(0, 1, 0);
                 potential_blocks.push((score, position));
                 break;
             }
@@ -254,8 +259,7 @@ fn move_to_pathfinding_goal(
         &mut MobHead,
     )>,
 ) {
-    for (health, mut cow, mut path_finder, mut physics, mut transform, mut mob_head) in
-        cows.iter_mut()
+    for (health, cow, mut path_finder, mut physics, mut transform, mut mob_head) in cows.iter_mut()
     {
         // Mob entities are kept for a little while after death to show a death pose
         if health.is_dead() {

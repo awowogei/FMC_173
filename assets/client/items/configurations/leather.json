@@ -1,0 +1,6 @@
+{
+    "name": "Leather",
+    "image": "leather.png",
+    "equip_model": "leather",
+    "stack_size": 64
+}
