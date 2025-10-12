@@ -419,10 +419,10 @@ fn interpolate_continent_height(noise: &Vec<f32>) -> Vec<f32> {
 
     for x_noise in 0..WIDTH {
         for z_noise in 0..HEIGHT {
-            let mut back_left = noise[index(x_noise + 0, z_noise + 0)];
-            let mut front_left = noise[index(x_noise + 0, z_noise + 1)];
-            let mut back_right = noise[index(x_noise + 1, z_noise + 0)];
-            let mut front_right = noise[index(x_noise + 1, z_noise + 1)];
+            let back_left = noise[index(x_noise + 0, z_noise + 0)];
+            let front_left = noise[index(x_noise + 0, z_noise + 1)];
+            let back_right = noise[index(x_noise + 1, z_noise + 0)];
+            let front_right = noise[index(x_noise + 1, z_noise + 1)];
 
             let back_increment = (back_right - back_left) * 0.25;
             let front_increment = (front_right - front_left) * 0.25;

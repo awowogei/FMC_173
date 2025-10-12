@@ -208,7 +208,7 @@ fn handle_block_hits(
         (Entity, &CraftingTable, &mut HandInteractions),
         Changed<HandInteractions>,
     >,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
 ) {
     for (crafting_table_entity, crafting_table, mut block_hits) in block_hits.iter_mut() {
         for player_entity in block_hits.read() {

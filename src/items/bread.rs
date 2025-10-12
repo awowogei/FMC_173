@@ -29,7 +29,7 @@ fn register_bread(
 fn eat_bread(
     mut bread_uses: Query<&mut ItemUses, (With<Bread>, Changed<ItemUses>)>,
     mut player_query: Query<&mut Inventory, With<Player>>,
-    mut heal_events: EventWriter<HealEvent>,
+    mut heal_events: MessageWriter<HealEvent>,
 ) {
     let Ok(mut uses) = bread_uses.single_mut() else {
         return;

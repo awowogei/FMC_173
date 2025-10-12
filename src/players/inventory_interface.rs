@@ -43,7 +43,7 @@ fn initialize_interface(
     mut commands: Commands,
     net: Res<Server>,
     new_player_query: Query<Entity, Added<Player>>,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
 ) {
     for player_entity in new_player_query.iter() {
         commands.entity(player_entity).with_children(|parent| {
@@ -483,7 +483,7 @@ fn handle_crafting_output_events(
 
 fn equip_item(
     net: Res<Server>,
-    mut equip_events: EventReader<NetworkMessage<messages::InterfaceEquipItem>>,
+    mut equip_events: MessageReader<NetworkMessage<messages::InterfaceEquipItem>>,
     mut inventory: Query<&mut Inventory>,
 ) {
     for equip_event in equip_events.read() {

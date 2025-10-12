@@ -33,7 +33,7 @@ impl Plugin for MobsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Mobs::default())
             .insert_resource(RandomMobs::default())
-            .add_event::<MobDamageEvent>()
+            .add_message::<MobDamageEvent>()
             .add_plugins(duck::DuckPlugin)
             .add_plugins(zombie::ZombiePlugin)
             .add_plugins(cow::CowPlugin)
@@ -455,7 +455,7 @@ fn handle_hand_hits(
     items: Res<Items>,
     player_inventory_query: Query<(&Inventory, &Camera), With<Player>>,
     mut mob_hits: Query<(Entity, &Mob, &HandHits, &mut Physics, &MobHealth), Changed<HandHits>>,
-    mut damage_events: EventWriter<MobDamageEvent>,
+    mut damage_events: MessageWriter<MobDamageEvent>,
 ) {
     for (mob_entity, mob, hits, mut physics, health) in mob_hits.iter_mut() {
         if health.is_invincible() {
@@ -483,7 +483,7 @@ fn handle_hand_hits(
     }
 }
 
-#[derive(Event)]
+#[derive(Message)]
 struct MobDamageEvent {
     mob_entity: Entity,
     damage: u32,
@@ -503,7 +503,7 @@ fn damage_mobs(
         &mut Transform,
         Option<&mut ModelColor>,
     )>,
-    mut damage_events: EventReader<MobDamageEvent>,
+    mut damage_events: MessageReader<MobDamageEvent>,
     mut rng: Local<Rng>,
 ) {
     for (mob_entity, mob, mut health, mut mob_transform, mut maybe_color) in mob_query.iter_mut() {

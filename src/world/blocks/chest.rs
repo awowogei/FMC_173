@@ -117,7 +117,7 @@ fn handle_interface_events(
         (Entity, &BlockPosition, &mut Chest, &mut InterfaceEvents),
         Changed<InterfaceEvents>,
     >,
-    mut block_update_writer: EventWriter<BlockUpdate>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
     for (chest_entity, block_position, mut chest, mut events) in input_events.iter_mut() {
         for event in events.read() {
@@ -158,7 +158,7 @@ fn handle_block_hits(
     net: Res<Server>,
     mut registry: ResMut<ChestRegistry>,
     mut block_hits: Query<(Entity, &Chest, &mut HandInteractions), Changed<HandInteractions>>,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
 ) {
     for (chest_entity, chest, mut block_hits) in block_hits.iter_mut() {
         for player_entity in block_hits.read() {

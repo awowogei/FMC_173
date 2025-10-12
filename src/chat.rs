@@ -23,7 +23,7 @@ fn handle_chat_messages(
     net: Res<Server>,
     mut player_query: Query<(&Player, &mut GameMode)>,
     mut clock: ResMut<Clock>,
-    mut chat_message_query: EventReader<NetworkMessage<messages::InterfaceTextInput>>,
+    mut chat_message_query: MessageReader<NetworkMessage<messages::InterfaceTextInput>>,
 ) {
     for chat_message in chat_message_query.read() {
         if &chat_message.interface_path != "chat/input" {
@@ -78,7 +78,7 @@ fn handle_chat_messages(
 fn send_connection_messages(
     net: Res<Server>,
     player_query: Query<&Player>,
-    mut network_events: EventReader<NetworkEvent>,
+    mut network_events: MessageReader<NetworkEvent>,
 ) {
     for event in network_events.read() {
         match event {

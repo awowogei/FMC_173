@@ -19,8 +19,8 @@ use super::{Equipment, GameMode, Inventory, RespawnEvent, movement::MovementPlug
 pub struct HealthPlugin;
 impl Plugin for HealthPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<PlayerDamageEvent>()
-            .add_event::<HealEvent>()
+        app.add_message::<PlayerDamageEvent>()
+            .add_message::<HealEvent>()
             .add_systems(
                 Update,
                 (
@@ -112,14 +112,14 @@ impl Health {
     }
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct PlayerDamageEvent {
     pub player_entity: Entity,
     pub damage: u32,
     pub knock_back: Option<DVec3>,
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct HealEvent {
     pub player_entity: Entity,
     pub healing: u32,
@@ -145,8 +145,8 @@ impl Default for FallDamage {
 
 fn fall_damage(
     mut fall_damage_query: Query<(&mut FallDamage, &GameMode), With<Player>>,
-    mut position_events: EventReader<NetworkMessage<messages::PlayerPosition>>,
-    mut damage_events: EventWriter<PlayerDamageEvent>,
+    mut position_events: MessageReader<NetworkMessage<messages::PlayerPosition>>,
+    mut damage_events: MessageWriter<PlayerDamageEvent>,
 ) {
     for position_update in position_events.read() {
         let (mut fall_damage, game_mode) = fall_damage_query
@@ -197,8 +197,8 @@ fn change_health(
         Mut<Equipment>,
         Mut<Health>,
     )>,
-    mut damage_events: EventReader<PlayerDamageEvent>,
-    mut heal_events: EventReader<HealEvent>,
+    mut damage_events: MessageReader<PlayerDamageEvent>,
+    mut heal_events: MessageReader<HealEvent>,
     mut rng: Local<Rng>,
 ) {
     for (player_entity, _, _, _, mut health) in health_query.iter_mut() {
@@ -308,7 +308,7 @@ struct DeathInterface;
 fn register_death_interface(
     mut commands: Commands,
     new_player_query: Query<Entity, Added<Player>>,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
 ) {
     for player_entity in new_player_query.iter() {
         commands.entity(player_entity).with_children(|parent| {
@@ -331,7 +331,7 @@ fn death_interface(
         &mut InterfaceEvents,
         (Changed<InterfaceEvents>, With<DeathInterface>),
     >,
-    mut respawn_events: EventWriter<RespawnEvent>,
+    mut respawn_events: MessageWriter<RespawnEvent>,
 ) {
     for mut interface_events in interface_query.iter_mut() {
         for interface_interaction in interface_events.read() {

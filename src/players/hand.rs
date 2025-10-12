@@ -71,7 +71,7 @@ impl HandHits {
 }
 
 fn handle_left_clicks(
-    mut clicks: EventReader<NetworkMessage<messages::LeftClick>>,
+    mut clicks: MessageReader<NetworkMessage<messages::LeftClick>>,
     models: Res<Models>,
     mut player_query: Query<
         (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
@@ -173,7 +173,7 @@ fn break_blocks(
     inventory_query: Query<&Inventory, With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
     mut breaking_model_query: Query<(&mut Model, &mut ModelVisibility), With<BreakingBlockMarker>>,
-    mut block_update_writer: EventWriter<BlockUpdate>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
     mut mining_events: ResMut<MiningEvents>,
     mut being_broken: Local<HashMap<BlockPosition, BreakingBlock>>,
     mut rng: Local<Rng>,
@@ -208,7 +208,7 @@ fn break_blocks(
                 continue;
             }
 
-            if breaking_block.particle_timer.finished() {
+            if breaking_block.particle_timer.is_finished() {
                 let chunk_position = ChunkPosition::from(block_position);
                 if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
                     if let Some(particle_effect) =
@@ -768,8 +768,8 @@ fn handle_right_clicks(
     mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
     mut item_use_query: Query<&mut ItemUses>,
     mut hand_interaction_query: Query<&mut HandInteractions>,
-    mut block_update_writer: EventWriter<BlockUpdate>,
-    mut clicks: EventReader<NetworkMessage<messages::RightClick>>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
+    mut clicks: MessageReader<NetworkMessage<messages::RightClick>>,
     mut rng: Local<Rng>,
 ) {
     // TODO: ActionOrder currently does nothing, but there needs to be some system for deviating

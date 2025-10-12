@@ -548,8 +548,8 @@ fn spread_water(
     water: Res<Water>,
     time: Res<Time>,
     mut update_timer: ResMut<WaterUpdateTimer>,
-    mut changed_blocks: EventReader<ChangedBlockEvent>,
-    mut block_updates: EventWriter<BlockUpdate>,
+    mut changed_blocks: MessageReader<ChangedBlockEvent>,
+    mut block_updates: MessageWriter<BlockUpdate>,
     mut updates: Local<HashMap<BlockPosition, WaterBlock>>,
 ) {
     let blocks = Blocks::get();

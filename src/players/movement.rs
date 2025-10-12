@@ -162,8 +162,8 @@ fn send_block_models(
     chunk_subscriptions: Res<ChunkSubscriptions>,
     block_model_query: Query<&BlockPosition, With<Model>>,
     players: Query<(Entity, Ref<ChunkPosition>), With<Player>>,
-    mut changed_blocks: EventReader<ChangedBlockEvent>,
-    mut loaded_chunks: EventReader<ChunkLoadEvent>,
+    mut changed_blocks: MessageReader<ChangedBlockEvent>,
+    mut loaded_chunks: MessageReader<ChunkLoadEvent>,
     mut nearby_models: Local<Vec<u32>>,
 ) {
     let gather_models = |chunk_position: ChunkPosition, nearby_models: &mut Vec<u32>| {

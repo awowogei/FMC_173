@@ -44,7 +44,7 @@ pub use health::{HealEvent, Health, PlayerDamageEvent};
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<RespawnEvent>()
+        app.add_message::<RespawnEvent>()
             .add_plugins(inventory_interface::InventoryInterfacePlugin)
             .add_plugins(health::HealthPlugin)
             .add_plugins(hand::HandPlugin)
@@ -65,7 +65,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(PostUpdate, save_player_data_on_disconnect)
             .add_systems(
                 Last,
-                save_player_data_on_shutdown.run_if(on_event::<AppExit>),
+                save_player_data_on_shutdown.run_if(on_message::<AppExit>),
             );
     }
 }
@@ -233,8 +233,8 @@ fn add_players(
     settings: Res<Settings>,
     database: Res<Database>,
     models: Res<Models>,
-    mut respawn_events: EventWriter<RespawnEvent>,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut respawn_events: MessageWriter<RespawnEvent>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
     added_players: Query<(Entity, &Player), Added<Player>>,
 ) {
     for (player_entity, player) in added_players.iter() {
@@ -311,7 +311,7 @@ struct PlayerQuery {
 
 fn save_player_data_on_disconnect(
     database: Res<Database>,
-    mut network_events: EventReader<NetworkEvent>,
+    mut network_events: MessageReader<NetworkEvent>,
     mut players: Query<PlayerQuery>,
 ) {
     for network_event in network_events.read() {
@@ -338,7 +338,7 @@ fn save_player_data_on_disconnect(
 
 fn save_player_data_on_shutdown(
     database: Res<Database>,
-    mut network_events: EventReader<NetworkEvent>,
+    mut network_events: MessageReader<NetworkEvent>,
     mut players: Query<PlayerQuery>,
 ) {
     for player_query in players.iter() {
@@ -355,7 +355,7 @@ fn save_player_data_on_shutdown(
     }
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct RespawnEvent {
     pub player_entity: Entity,
 }
@@ -372,8 +372,8 @@ fn respawn_players(
     world_map: Res<WorldMap>,
     database: Res<Database>,
     mut player_query: Query<&mut Transform, With<Player>>,
-    mut heal_events: EventWriter<HealEvent>,
-    mut respawn_events: EventReader<RespawnEvent>,
+    mut heal_events: MessageWriter<HealEvent>,
+    mut respawn_events: MessageReader<RespawnEvent>,
 ) {
     for respawn_event in respawn_events.read() {
         let blocks = Blocks::get();
@@ -440,7 +440,7 @@ fn respawn_players(
 // models directly, as there will be a small collection of them.
 fn rotate_player_model(
     mut player_query: Query<&mut Transform, With<Player>>,
-    mut camera_rotation_events: EventReader<NetworkMessage<messages::PlayerCameraRotation>>,
+    mut camera_rotation_events: MessageReader<NetworkMessage<messages::PlayerCameraRotation>>,
 ) {
     for rotation_update in camera_rotation_events.read() {
         let mut transform = player_query.get_mut(rotation_update.player_entity).unwrap();
@@ -586,7 +586,7 @@ fn discard_items(
 }
 
 fn handle_gui_settings(
-    mut setting_events: EventReader<NetworkMessage<messages::GuiSetting>>,
+    mut setting_events: MessageReader<NetworkMessage<messages::GuiSetting>>,
     mut game_mode: Query<&mut GameMode>,
 ) {
     for setting in setting_events.read() {

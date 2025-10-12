@@ -224,7 +224,7 @@ fn furnace(
     items: Res<Items>,
     registry: Res<FurnaceRegistry>,
     mut furnaces_query: Query<(Entity, &BlockPosition, &mut Furnace)>,
-    mut block_update_writer: EventWriter<BlockUpdate>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
     for (entity, block_position, mut furnace) in furnaces_query.iter_mut() {
         let prev_heat = furnace.heat_stage();
@@ -350,7 +350,7 @@ fn handle_block_hits(
     net: Res<Server>,
     mut registry: ResMut<FurnaceRegistry>,
     mut block_hits: Query<(Entity, &Furnace, &mut HandInteractions), Changed<HandInteractions>>,
-    mut registration_events: EventWriter<RegisterInterfaceNode>,
+    mut registration_events: MessageWriter<RegisterInterfaceNode>,
 ) {
     for (furnace_entity, furnace, mut block_hits) in block_hits.iter_mut() {
         for player_entity in block_hits.read() {

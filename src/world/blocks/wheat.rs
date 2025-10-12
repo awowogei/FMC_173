@@ -105,7 +105,7 @@ fn spawn_wheat_6(commands: &mut EntityCommands, _block_data: Option<&BlockData>)
 fn grow(
     time: Res<Time>,
     mut growing: Query<(&mut Wheat, &BlockPosition)>,
-    mut block_update_writer: EventWriter<BlockUpdate>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
     for (mut wheat, block_position) in growing.iter_mut() {
         if wheat.stage == 6 {

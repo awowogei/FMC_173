@@ -141,7 +141,7 @@ fn wander(
             continue;
         }
 
-        if duck.wander_timer.finished() {
+        if duck.wander_timer.is_finished() {
             duck.wander_timer = Timer::from_seconds(
                 UniformDistribution::new(10.0, 15.0).sample(&mut rng),
                 TimerMode::Once,

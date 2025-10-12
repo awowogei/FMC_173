@@ -23,8 +23,8 @@ impl Plugin for TorchPlugin {
 fn fragile_break(
     mut commands: Commands,
     items: Res<Items>,
-    mut changed_blocks: EventReader<ChangedBlockEvent>,
-    mut block_updates: EventWriter<BlockUpdate>,
+    mut changed_blocks: MessageReader<ChangedBlockEvent>,
+    mut block_updates: MessageWriter<BlockUpdate>,
     mut rng: Local<Rng>,
 ) {
     for changed_block in changed_blocks.read() {

@@ -100,10 +100,10 @@ impl Default for CowBundle {
 fn setup(
     database: Res<Database>,
     items: Res<Items>,
+    models: Res<Models>,
     mut mobs: ResMut<Mobs>,
     mut random_mobs: ResMut<RandomMobs>,
     mut mob_crates: ResMut<MobCrates>,
-    models: Res<Models>,
 ) {
     // let connection = database.get_write_connection();
     // connection

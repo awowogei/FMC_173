@@ -55,7 +55,7 @@ fn use_hoe(
     chunk_subscriptions: Res<ChunkSubscriptions>,
     player_query: Query<&Targets, With<Player>>,
     mut hoe_uses: Query<(&mut ItemUses, &HoeConfig), Changed<ItemUses>>,
-    mut block_update_writer: EventWriter<BlockUpdate>,
+    mut block_update_writer: MessageWriter<BlockUpdate>,
     mut rng: Local<Rng>,
 ) {
     let Ok((mut uses, config)) = hoe_uses.single_mut() else {

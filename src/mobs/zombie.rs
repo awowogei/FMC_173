@@ -505,7 +505,7 @@ fn hide_during_daytime(
 fn attack(
     zombies: Query<(&Zombie, &GlobalTransform)>,
     players: Query<&GlobalTransform, With<Player>>,
-    mut damage_event_writer: EventWriter<PlayerDamageEvent>,
+    mut damage_event_writer: MessageWriter<PlayerDamageEvent>,
 ) {
     for (zombie, zombie_transform) in zombies.iter() {
         let Some(target) = zombie.target else {
