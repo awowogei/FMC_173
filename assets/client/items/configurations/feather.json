@@ -1,0 +1,6 @@
+{
+    "name": "Feather",
+    "image": "feather.png",
+    "equip_model": "feather",
+    "stack_size": 64
+}

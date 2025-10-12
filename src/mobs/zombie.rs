@@ -4,7 +4,7 @@ use fmc::{
     bevy::math::DVec3,
     blocks::{BlockPosition, Blocks},
     database::Database,
-    items::Items,
+    items::{DropTable, Items},
     models::{AnimationPlayer, Model, ModelVisibility, Models},
     physics::{Collider, Physics},
     players::{Camera, Player},
@@ -165,9 +165,11 @@ fn setup(
         death: vec!["zombie_death.ogg".to_owned()],
     };
 
+    let feather = items.get_id("feather").unwrap();
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_zombie),
         sounds,
+        drop_table: DropTable::new(1.0, &vec![1.0], &vec![(feather, 0, 2)]).unwrap(),
     });
 
     random_mobs.add_hostile(4, mob_id);
