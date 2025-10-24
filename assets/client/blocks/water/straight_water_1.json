@@ -1,32 +1,7 @@
 {
-    "type": "cube",
-    "name": "straight_water_1",
-    "material": "water",
-    "friction": [
-        0.8,
-        0.5,
-        0.8
-    ],
+    "parent": "water/parent.json",
     "light_attenuation": 0,
-    "fog": {
-        "color": {
-            "LinearRgba": {
-                "red": 0,
-                "green": 0,
-                "blue": 0.7,
-                "alpha": 1
-            }
-        },
-        "start": 0,
-        "stop": 100
-    },
-    "replaceable": true,
-    "placement": {
-        "floor": true,
-        "ceiling": true,
-        "sides": true,
-        "rotatable": true
-    },
+    "name": "straight_water_1",
     "quads": [
         {
             "vertices": [

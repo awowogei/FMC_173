@@ -101,19 +101,9 @@ def make_block(name, top_quad, top_texture, rotate_texture, is_rotatable, cull_t
     })
 
     return {
-        "type": "cube",
-        "name": name,
-        "material": material_name,
-        "friction": friction,
+        "parent": base_name + "/parent.json",
         "light_attenuation": light_attenuation,
-        "fog": fog,
-        "replaceable": True,
-        "placement": {
-            "floor": True,
-            "ceiling": True,
-            "sides": True,
-            "rotatable": True,
-        },
+        "name": name,
         "quads": quads
     }
 
@@ -192,56 +182,73 @@ blocks.append(make_block(
 ))
 
 blocks.extend(make_blocks(
-    "still_" + base_name,
-    [0,0,0,0],
-    still_texture_name,
-    False,
-    9,
-    False
+    name="still_" + base_name,
+    decrement=[0,0,0,0],
+    top_texture=still_texture_name,
+    rotate_texture=False,
+    count=9,
+    is_rotatable=False
 ))
 
 blocks.extend(make_blocks(
-    "tilted_" + base_name,
-    [1,0,0,1],
-    still_texture_name,
-    False,
-    8
+    name="tilted_" + base_name,
+    decrement=[1,0,0,1],
+    top_texture=still_texture_name,
+    rotate_texture=False,
+    count=8
 ))
 
 blocks.extend(make_blocks(
-    "straight_" + base_name,
-    [0,1,0,1],
-    flowing_texture_name,
-    False,
-    8,
+    name="straight_" + base_name,
+    decrement=[0,1,0,1],
+    top_texture=flowing_texture_name,
+    rotate_texture=False,
+    count=8,
 ))
 
 blocks.extend(make_blocks(
-    "diagonal_" + base_name,
-    [1,2,0,1],
-    flowing_texture_name,
-    True,
-    7,
+    name="diagonal_" + base_name,
+    decrement=[1,2,0,1],
+    top_texture=flowing_texture_name,
+    rotate_texture=True,
+    count=7,
 ))
 
 blocks.extend(make_blocks(
-    "diagonal_" + base_name + "_corner_up",
-    [1,1,0,1],
-    flowing_texture_name,
-    True,
-    8
+    name="diagonal_" + base_name + "_corner_up",
+    decrement=[1,1,0,1],
+    top_texture=flowing_texture_name,
+    rotate_texture=True,
+    count=8
 ))
 
 blocks.extend(make_blocks(
-    "diagonal_" + base_name + "_corner_down",
-    [0,1,0,0],
-    flowing_texture_name,
-    True,
-    8
+    name="diagonal_" + base_name + "_corner_down",
+    decrement=[0,1,0,0],
+    top_texture=flowing_texture_name,
+    rotate_texture=True,
+    count=8
 ))
 
 shutil.rmtree(base_name, ignore_errors=True)
 os.mkdir(base_name)
+
+parent = {
+    "type": "cube",
+    "material": material_name,
+    "friction": friction,
+    "fog": fog,
+    "replaceable": True,
+    "placement": {
+        "floor": True,
+        "ceiling": True,
+        "sides": True,
+        "rotatable": True,
+    },
+}
+path = base_name + "/parent.json"
+with open(path, "w") as file:
+    json.dump(parent, file, indent=4)
 
 for block in blocks:
     path = base_name + "/" + block["name"] + ".json"

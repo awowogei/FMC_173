@@ -172,9 +172,8 @@ impl MovementPlugin {
         let forward = Vec3::new(camera_forward.x, 0., camera_forward.z);
         let sideways = Vec3::new(-camera_forward.z, 0., camera_forward.x);
 
-        let mut standing_on_ladder = false;
         let mut horizontal_acceleration = Vec3::ZERO;
-        let mut vertical_acceleration = Vec3::ZERO;
+        let mut vertical_acceleration = GRAVITY;
 
         for key in self.pressed_keys.iter() {
             match *key {
@@ -184,7 +183,7 @@ impl MovementPlugin {
                 fmc::Key::KeyD => horizontal_acceleration += sideways,
                 fmc::Key::Space => {
                     if self.properties.is_swimming {
-                        vertical_acceleration.y = 20.0
+                        vertical_acceleration.y = 30.0
                     } else if self.properties.is_grounded.y && self.properties.last_jump > JUMP_TIME
                     {
                         self.properties.last_jump = 0.0;
@@ -197,19 +196,22 @@ impl MovementPlugin {
                     } else if self.properties.climbing.is_some() {
                         self.properties.velocity.y = 0.0;
                         vertical_acceleration.y = 0.0;
-                        standing_on_ladder = true;
                     }
                 }
                 _ => (),
             }
         }
 
-        if !self.properties.is_swimming && !standing_on_ladder {
-            vertical_acceleration += GRAVITY;
-        }
-
         if horizontal_acceleration != Vec3::ZERO {
+            // Normalize the product instead of the inputs so it stays unit length no matter how
+            // many buttons are pressed.
             horizontal_acceleration = horizontal_acceleration.normalize();
+
+            if self.properties.is_grounded.y {
+                horizontal_acceleration *= 50.0;
+            } else {
+                horizontal_acceleration *= 20.0;
+            }
 
             if let Some(climbing_direction) = self.properties.climbing
                 && climbing_direction.dot(horizontal_acceleration) < 0.0
@@ -217,25 +219,6 @@ impl MovementPlugin {
                 self.properties.velocity.y = 5.0;
                 vertical_acceleration.y = 0.0;
             }
-        }
-
-        if self.properties.is_swimming {
-            if vertical_acceleration.y == 0.0 {
-                vertical_acceleration.y = -10.0;
-            }
-            horizontal_acceleration.x *= 40.0;
-            horizontal_acceleration.z *= 40.0;
-        } else if self.properties.is_grounded.y {
-            horizontal_acceleration *= 100.0;
-        } else if self.properties.velocity.x.abs() > 2.0
-            || self.properties.velocity.z.abs() > 2.0
-            || self.properties.velocity.y < -10.0
-        {
-            // Move fast in air if you're already in motion
-            horizontal_acceleration *= 50.0;
-        } else {
-            // Move slow in air in jumping from a standstill
-            horizontal_acceleration *= 20.0;
         }
 
         self.properties.acceleration = horizontal_acceleration + vertical_acceleration;
@@ -268,7 +251,7 @@ impl MovementPlugin {
         }
 
         if acceleration != Vec3::ZERO {
-            acceleration = acceleration.normalize() * 140.0;
+            acceleration = acceleration.normalize() * 60.0;
         }
 
         if self.pressed_keys.contains(&fmc::Key::Control) {
@@ -293,9 +276,9 @@ impl MovementPlugin {
             });
         }
 
-        let friction: f32 = 0.9;
-        self.properties.velocity =
-            self.properties.velocity * (1.0 - friction).powf(4.0).powf(self.delta_time);
+        let friction = 0.9;
+        let mass = 1.0;
+        self.properties.velocity *= (-friction / mass * self.delta_time).exp();
     }
 
     // TODO: This tunnels if you move faster than maybe a few blocks a second
@@ -424,10 +407,8 @@ impl MovementPlugin {
             });
         }
 
-        // XXX: Pow(4) is just to scale it further towards zero when friction is high. The function
-        // should be read as 'velocity *= friction^time'
-        self.properties.velocity =
-            self.properties.velocity * (1.0 - friction).powf(4.0).powf(self.delta_time);
+        let mass = 1.0;
+        self.properties.velocity *= (-friction / mass * self.delta_time).exp();
 
         // Give a little boost when exiting water so that the bob stays constant.
         if was_swimming && !self.properties.is_swimming {
