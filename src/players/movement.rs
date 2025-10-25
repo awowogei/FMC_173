@@ -1,7 +1,8 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks, Friction},
+    blocks::{BlockPosition, Blocks},
     models::{Model, ModelMap, ModelSystems, Models},
     networking::Server,
+    physics::Friction,
     physics::{Collider, shapes::Aabb},
     players::Player,
     prelude::*,
@@ -170,17 +171,15 @@ fn send_block_models(
         nearby_models.clear();
 
         for chunk_position in chunk_position.neighbourhood() {
-            if let Some(models) = model_map.get_entities(&chunk_position) {
-                for model_entity in models {
-                    let Ok(block_position) = block_model_query.get(*model_entity) else {
-                        continue;
-                    };
-                    let block_id = world_map.get_block(*block_position).unwrap();
-                    let block_config = Blocks::get().get_config(&block_id);
+            for model_entity in model_map.iter_entities(&chunk_position) {
+                let Ok(block_position) = block_model_query.get(model_entity) else {
+                    continue;
+                };
+                let block_id = world_map.get_block(*block_position).unwrap();
+                let block_config = Blocks::get().get_config(&block_id);
 
-                    if block_config.is_solid() {
-                        nearby_models.push(model_entity.index());
-                    }
+                if block_config.is_solid() {
+                    nearby_models.push(model_entity.index());
                 }
             }
         }

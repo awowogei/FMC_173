@@ -2,7 +2,8 @@ use std::collections::BinaryHeap;
 
 use fmc::{
     bevy::math::{DVec2, DVec3},
-    blocks::{BlockPosition, Blocks, Friction},
+    blocks::{BlockPosition, Blocks},
+    physics::Friction,
     prelude::*,
     world::WorldMap,
 };

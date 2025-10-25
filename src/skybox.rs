@@ -6,8 +6,10 @@ use fmc::{networking::Server, prelude::*, protocol::messages};
 pub struct SkyPlugin;
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Clock::default())
-            .add_systems(Update, day_night_cycle);
+        app.insert_resource(Clock {
+            time: Duration::from_secs_f32(100.0),
+        })
+        .add_systems(Update, day_night_cycle);
     }
 }
 
@@ -20,7 +22,7 @@ const MIDNIGHT: f32 = DAY_LENGTH * 0.75;
 const NOON: f32 = DAY_LENGTH * 0.25;
 
 /// The current time of day, 0s = dawn, 600s = dusk
-#[derive(Default, DerefMut, Deref, Resource)]
+#[derive(DerefMut, Deref, Resource)]
 pub struct Clock {
     time: Duration,
 }

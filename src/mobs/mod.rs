@@ -20,13 +20,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     items::DroppedItem,
-    players::{HandHits, HandSystems, Inventory},
+    players::{GameMode, HandHits, HandSystems, Inventory},
     skybox::Clock,
 };
 
 pub mod cow;
 pub mod duck;
 mod pathfinding;
+pub mod skeleton;
 pub mod zombie;
 
 pub struct MobsPlugin;
@@ -37,18 +38,21 @@ impl Plugin for MobsPlugin {
             .add_message::<MobDamageEvent>()
             .add_plugins(duck::DuckPlugin)
             .add_plugins(zombie::ZombiePlugin)
+            .add_plugins(skeleton::SkeletonPlugin)
             .add_plugins(cow::CowPlugin)
             .add_systems(
                 Update,
                 (
                     sync_mob_caps,
-                    spawn_hostile_random_mobs,
-                    spawn_friendly_random_mobs,
+                    // spawn_hostile_random_mobs,
+                    // spawn_friendly_random_mobs,
                     despawn_mobs,
                     handle_hand_hits.after(HandSystems),
                     damage_mobs,
                     play_random_sound,
                     look_around,
+                    wander,
+                    targeting,
                 ),
             );
     }
@@ -693,33 +697,45 @@ fn look_around(
     time: Res<Time>,
     models: Res<Models>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
-    mut mob_query: Query<
-        (
-            Entity,
-            &mut Transform,
-            &mut MobHead,
-            &Physics,
-            &Model,
-            &MobHealth,
-        ),
-        With<Mob>,
-    >,
+    mut mob_query: Query<(
+        Entity,
+        &mut Transform,
+        &mut MobHead,
+        &Physics,
+        &Model,
+        &MobHealth,
+        Option<&Target>,
+    )>,
     mut rng: Local<Rng>,
 ) {
-    for (entity, mut transform, mut head, physics, model, health) in mob_query.iter_mut() {
+    for (entity, mut transform, mut head, physics, model, health, maybe_target) in
+        mob_query.iter_mut()
+    {
         if health.is_dead() {
             return;
         }
 
+        let target = if let Some(target) = head.target {
+            // If the head is explicitly set to look at something, that takes precedence.
+            Some(target)
+        } else if let Some(target) = maybe_target
+            && target.get().is_some()
+        {
+            // Otherwise if the mob has a target we look at that instead.
+            Some(target.last_position)
+        } else {
+            None
+        };
+
         // First we determine which way the head should be rotated. If the mob is standing still,
         // we also rotate the body.
-        if let Some(target) = head.target {
+        if let Some(target) = target {
             let head_position = transform.translation + head.position;
             let mut head_transform = Transform::from_translation(head_position);
             head_transform.look_at(target, DVec3::Y);
             let (yaw, pitch, _) = head_transform.rotation.to_euler(EulerRot::YXZ);
-            head.goal_yaw = (yaw as f32).max(-head.max_yaw).min(head.max_yaw);
-            head.goal_pitch = (pitch as f32).max(-head.max_pitch).min(head.max_pitch);
+            head.goal_yaw = (yaw as f32); //.max(-head.max_yaw).min(head.max_yaw);
+            head.goal_pitch = (pitch as f32); //.max(-head.max_pitch).min(head.max_pitch);
         } else if rng.next_f32() < 0.01 {
             if physics.velocity == DVec3::ZERO {
                 let head_yaw = UniformDistribution::new(-FRAC_PI_2, FRAC_PI_2).sample(&mut rng);
@@ -796,6 +812,254 @@ fn look_around(
             );
         } else if physics.velocity == DVec3::ZERO {
             transform.rotation = transform.rotation * DQuat::from_rotation_y(yaw as f64);
+        }
+    }
+}
+
+#[derive(Component)]
+struct Wanderer {
+    timer: Timer,
+    min_time: f32,
+    max_time: f32,
+    rng: Rng,
+}
+
+impl Wanderer {
+    fn new(min_time: f32, max_time: f32) -> Self {
+        let mut wanderer = Self {
+            timer: Timer::default(),
+            min_time,
+            max_time,
+            rng: Rng::default(),
+        };
+        wanderer.reset_timer();
+
+        wanderer
+    }
+
+    fn disable(&mut self) {
+        self.timer.finish();
+    }
+
+    fn enable(&mut self) {
+        self.reset_timer();
+    }
+
+    fn reset_timer(&mut self) {
+        self.timer = Timer::from_seconds(
+            UniformDistribution::new(self.min_time, self.max_time).sample(&mut self.rng),
+            TimerMode::Once,
+        );
+    }
+}
+
+fn wander(
+    world_map: Res<WorldMap>,
+    time: Res<Time>,
+    mut wanderers: Query<(
+        &mut Wanderer,
+        &mut pathfinding::PathFinder,
+        &GlobalTransform,
+    )>,
+    mut rng: Local<Rng>,
+) {
+    for (mut wanderer, mut path_finder, transform) in wanderers.iter_mut() {
+        if path_finder.has_goal() || wanderer.timer.is_finished() {
+            continue;
+        }
+
+        wanderer.timer.tick(time.delta());
+        if wanderer.timer.just_finished() {
+            wanderer.reset_timer();
+        } else {
+            continue;
+        }
+
+        let blocks = Blocks::get();
+        let grass_id = blocks.get_id("grass");
+
+        let wander_distance = UniformDistribution::new(-8i32, 8);
+
+        let mut potential_blocks = Vec::with_capacity(10);
+        for _ in 0..10 {
+            let x = wander_distance.sample(&mut rng);
+            let y = wander_distance.sample(&mut rng);
+            let z = wander_distance.sample(&mut rng);
+            let block_position =
+                BlockPosition::from(transform.translation()) + BlockPosition::new(x, y, z);
+
+            let chunk_position = ChunkPosition::from(block_position);
+            let Some(chunk) = world_map.get_chunk(&chunk_position) else {
+                continue;
+            };
+
+            // TODO: This is much the same as [fmc::world::Surface]. It is too expensive to
+            // construct for each position, but maybe it should be precomputed and stored in the
+            // chunk? There are many things that make use of it.
+            let chunk_index_xz = block_position.as_chunk_index() & !0b1111;
+            for y in (0..Chunk::SIZE).rev() {
+                let chunk_index = chunk_index_xz | y;
+                let block_id = chunk[chunk_index];
+
+                if !blocks.get_config(&block_id).is_solid() {
+                    continue;
+                }
+
+                let mut score = 0;
+                if block_id == grass_id {
+                    score += 1
+                };
+
+                // Stay out of caves
+                if chunk_position.y + y as i32 > 0 {
+                    score += 1;
+                }
+
+                let position = BlockPosition::from(chunk_position)
+                    + BlockPosition::from(chunk_index)
+                    + BlockPosition::new(0, 1, 0);
+                potential_blocks.push((score, position));
+                break;
+            }
+        }
+
+        potential_blocks.sort_by_key(|(score, _)| *score);
+        let Some((_, best_position)) = potential_blocks.last() else {
+            return;
+        };
+
+        let goal = best_position.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
+        path_finder.find_path(&world_map, transform.translation(), goal);
+    }
+}
+
+#[derive(Component, Default)]
+struct Target {
+    // Last position the target was seen at
+    last_position: DVec3,
+    target: Option<Entity>,
+    in_line_of_sight: bool,
+}
+
+impl Target {
+    fn get(&self) -> Option<Entity> {
+        self.target
+    }
+
+    fn set(&mut self, target: Option<Entity>) {
+        self.in_line_of_sight = target.is_some();
+        self.target = target;
+    }
+}
+
+fn targeting(
+    world_map: Res<WorldMap>,
+    player_query: Query<(Entity, &GameMode, &Transform, &Camera), With<Player>>,
+    mob_query: Query<(Entity, &Transform, &MobHead), With<Mob>>,
+    mut target_query: Query<(&mut Target, &Transform, &MobHead)>,
+) {
+    fn has_line_of_sight(
+        head_position: &DVec3,
+        other_head_position: &DVec3,
+        world_map: &WorldMap,
+        blocks: &Blocks,
+    ) -> bool {
+        const MAX_DISTANCE: f64 = 16.0;
+        if head_position.distance(*other_head_position) > MAX_DISTANCE {
+            return false;
+        }
+
+        let mut head = Transform {
+            translation: *head_position,
+            ..default()
+        };
+        head.look_at(*other_head_position, DVec3::Y);
+
+        let other_block_position = BlockPosition::from(*other_head_position);
+
+        let mut raycast = world_map.raycast(&head, MAX_DISTANCE);
+        while let Some(block_id) = raycast.next_block() {
+            if blocks.get_config(&block_id).is_solid() {
+                return false;
+            } else if raycast.position() == other_block_position {
+                return true;
+            }
+        }
+
+        // Might be some precision error?
+        return false;
+    }
+
+    for (mut target, transform, mob_head) in target_query.iter_mut() {
+        if let Some(target_entity) = target.get() {
+            // If it already has a target, check that it's still a viable target and then check if
+            // there's a line of sight to it.
+            let head_position = transform.translation + mob_head.position;
+
+            let other_head_position = if let Ok((_, game_mode, player_transform, camera)) =
+                player_query.get(target_entity)
+            {
+                if *game_mode != GameMode::Survival {
+                    target.set(None);
+                    continue;
+                }
+
+                player_transform.translation + camera.translation
+            } else if let Ok((_, other_transform, other_mob_head)) = mob_query.get(target_entity) {
+                other_transform.translation + other_mob_head.position
+            } else {
+                // Mob despawned or player disconnected
+                target.set(None);
+                continue;
+            };
+
+            // Lose interest if distance greater than 20 blocks
+            if head_position.distance_squared(other_head_position) > 400.0 {
+                target.set(None);
+                continue;
+            }
+
+            if has_line_of_sight(
+                &head_position,
+                &other_head_position,
+                &world_map,
+                Blocks::get(),
+            ) {
+                target.in_line_of_sight = true;
+                target.last_position = other_head_position;
+            } else {
+                target.in_line_of_sight = false;
+            }
+        } else {
+            let head_position = transform.translation + mob_head.position;
+            // TODO: Only test the players that are subscribed to the chunk the mob is in
+            for (player_entity, game_mode, player_transform, camera) in player_query.iter() {
+                if *game_mode != GameMode::Survival
+                    || player_transform
+                        .translation
+                        .distance_squared(transform.translation)
+                        > 400.0
+                    || transform
+                        .forward()
+                        .dot(player_transform.translation - transform.translation)
+                        < 0.0
+                {
+                    // Target if in survival mode, less than 20 blocks away, facing the player
+                    continue;
+                }
+
+                let player_head_position = player_transform.translation + camera.translation;
+                if has_line_of_sight(
+                    &head_position,
+                    &player_head_position,
+                    &world_map,
+                    Blocks::get(),
+                ) {
+                    target.set(Some(player_entity));
+                    target.last_position = player_head_position;
+                    break;
+                }
+            }
         }
     }
 }

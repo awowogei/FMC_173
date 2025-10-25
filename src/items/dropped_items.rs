@@ -132,13 +132,11 @@ fn item_pickup(
         let neighbourhood = ChunkPosition::from(player_transform.translation()).neighbourhood();
         let item_entities = neighbourhood
             .iter()
-            .flat_map(|chunk_position| model_map.get_entities(chunk_position))
-            // Second flatten for &HashSet<Entity> -> &Entity
-            .flatten();
+            .flat_map(|chunk_position| model_map.iter_entities(chunk_position));
 
         for item_entity in item_entities {
             let Ok((entity, mut dropped_item, mut physics, item_transform)) =
-                dropped_items.get_mut(*item_entity)
+                dropped_items.get_mut(item_entity)
             else {
                 continue;
             };

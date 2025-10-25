@@ -5,6 +5,7 @@ use fmc::{items::ItemId, prelude::*};
 pub mod crafting;
 mod dropped_items;
 
+pub mod arrows;
 pub mod bread;
 pub mod hoes;
 pub mod seeds;
@@ -21,6 +22,7 @@ impl Plugin for ItemPlugin {
             .add_plugins(hoes::HoePlugin)
             .add_plugins(bread::BreadPlugin)
             .add_plugins(spawn_crates::CratePlugin)
+            .add_plugins(arrows::ArrowPlugin)
             .add_plugins(seeds::SeedPlugin);
     }
 }

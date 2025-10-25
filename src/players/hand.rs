@@ -847,20 +847,18 @@ fn handle_right_clicks(
                             ..default()
                         };
 
-                        if let Some(entities) = model_map.get_entities(&chunk_position) {
-                            for (model_collider, global_transform) in
-                                model_query.iter_many(entities)
+                        for (model_collider, global_transform) in
+                            model_query.iter_many(model_map.iter_entities(&chunk_position))
+                        {
+                            if model_collider
+                                .intersection(
+                                    &global_transform.compute_transform(),
+                                    &replaced_block_transform,
+                                    &block_config.collider,
+                                )
+                                .is_some()
                             {
-                                if model_collider
-                                    .intersection(
-                                        &global_transform.compute_transform(),
-                                        &replaced_block_transform,
-                                        &block_config.collider,
-                                    )
-                                    .is_some()
-                                {
-                                    continue;
-                                }
+                                continue;
                             }
                         }
 

@@ -5,7 +5,7 @@
         "pattern": [
             [["oak_planks", 1]]
         ],
-        "output_item": "zombie_crate",
+        "output_item": "skeleton_crate",
         "output_amount": 1
     }
 ]

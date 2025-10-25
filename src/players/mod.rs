@@ -11,7 +11,7 @@ use fmc::{
         HeldInterfaceStack, InterfaceEventRegistration, InterfaceEvents, RegisterInterfaceNode,
     },
     items::ItemStack,
-    models::{AnimationPlayer, Model, Models},
+    models::{AnimationPlayer, Model, Models, Observers},
     networking::{NetworkEvent, NetworkMessage, Server},
     physics::{Collider, Physics},
     players::{Camera, Player},
@@ -278,11 +278,8 @@ fn add_players(
         animation_player.set_idle_animation(Some(model.animations["idle"]));
         animation_player.set_transition_time(0.15);
 
-        let model_entity = commands
-            .spawn(Model::Asset(model.id))
-            .insert(ChildOf(player_entity))
-            .id();
-        animation_player.set_target(model_entity);
+        let mut model_observers = Observers::default();
+        model_observers.exclude(player_entity);
 
         let discard_items_entity = commands.spawn(DiscardItems).id();
         registration_events.write(RegisterInterfaceNode {
@@ -293,7 +290,12 @@ fn add_players(
 
         commands
             .entity(player_entity)
-            .insert((bundle, animation_player))
+            .insert((
+                bundle,
+                Model::Asset(model.id),
+                animation_player,
+                model_observers,
+            ))
             .add_child(discard_items_entity);
     }
 }
