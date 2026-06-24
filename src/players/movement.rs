@@ -1,6 +1,6 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
-    models::{Model, ModelMap, ModelSystems, Models},
+    models::{Model, ModelId, ModelMap, ModelSystems, Models},
     networking::Server,
     physics::Friction,
     physics::{Collider, shapes::Aabb},
@@ -14,6 +14,7 @@ use fmc::{
 };
 
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub(super) struct MovementPlugin;
 impl Plugin for MovementPlugin {
@@ -32,7 +33,7 @@ pub enum MovementPluginPacket<'a> {
     /// Changes the player's velocity
     Velocity(Vec3),
     /// Notifies the plugin of which models it should collide with.
-    Models(&'a Vec<u32>),
+    Models(&'a HashMap<ModelId, CollisionConfig>),
     /// Changes the game mode
     GameMode(u32),
 }
@@ -165,27 +166,36 @@ fn send_block_models(
     players: Query<(Entity, Ref<ChunkPosition>), With<Player>>,
     mut changed_blocks: MessageReader<ChangedBlockEvent>,
     mut loaded_chunks: MessageReader<ChunkLoadEvent>,
-    mut nearby_models: Local<Vec<u32>>,
+    mut nearby_models: Local<HashMap<ModelId, CollisionConfig>>,
 ) {
-    let gather_models = |chunk_position: ChunkPosition, nearby_models: &mut Vec<u32>| {
-        nearby_models.clear();
+    let gather_models =
+        |chunk_position: ChunkPosition, nearby_models: &mut HashMap<ModelId, CollisionConfig>| {
+            nearby_models.clear();
 
-        for chunk_position in chunk_position.neighbourhood() {
-            for model_entity in model_map.iter_entities(&chunk_position) {
-                let Ok(block_position) = block_model_query.get(model_entity) else {
-                    continue;
-                };
-                let block_id = world_map.get_block(*block_position).unwrap();
-                let block_config = Blocks::get().get_config(&block_id);
+            for chunk_position in chunk_position.neighbourhood() {
+                for model_entity in model_map.iter_entities(&chunk_position) {
+                    // TODO: restricted to block models for now, but should include all models
+                    let Ok(block_position) = block_model_query.get(model_entity) else {
+                        continue;
+                    };
+                    let block_id = world_map.get_block(*block_position).unwrap();
+                    let block_config = Blocks::get().get_config(&block_id);
 
-                if block_config.is_solid() {
-                    nearby_models.push(model_entity.index());
+                    if block_config.is_solid() {
+                        nearby_models.insert(
+                            model_entity.index() as ModelId,
+                            CollisionConfig {
+                                collider: Vec3Collider::from(&block_config.collider),
+                                friction: Vec3Friction::from(&block_config.friction),
+                                climbable: false,
+                            },
+                        );
+                    }
                 }
             }
-        }
-    };
+        };
 
-    // When a player move over a chunk boundary
+    // When a player moves over a chunk boundary
     for (player_entity, player_chunk_position) in players.iter() {
         if !player_chunk_position.is_changed() {
             continue;

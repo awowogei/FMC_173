@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use fmc_client_api::{
     self as fmc,
@@ -28,13 +28,11 @@ struct MovementPlugin {
     pressed_keys: HashSet<fmc::Key>,
     // Caching delta time to reduce interface hits
     delta_time: f32,
-    models: HashSet<ModelId>,
-    model_configs: Vec<CollisionConfig>,
+    // Because of custom models we have to have unique collision configs for each model.
+    models: HashMap<ModelId, CollisionConfig>,
     block_configs: Vec<CollisionConfig>,
     initialized: bool,
 }
-
-impl MovementPlugin {}
 
 #[derive(Default)]
 struct PlayerProperties {
@@ -93,12 +91,11 @@ impl fmc::Plugin for MovementPlugin {
         enum Packet {
             Setup {
                 blocks: Vec<CollisionConfig>,
-                models: Vec<CollisionConfig>,
             },
             /// Changes the player's velocity
             Velocity(Vec3),
             /// Notifies the plugin of which models it should collide with.
-            Models(Vec<ModelId>),
+            Models(HashMap<ModelId, CollisionConfig>),
             /// Changes the game mode.
             Mode(u32),
         }
@@ -109,9 +106,8 @@ impl fmc::Plugin for MovementPlugin {
         };
 
         match packet {
-            Packet::Setup { blocks, models } => {
+            Packet::Setup { blocks } => {
                 self.block_configs = blocks;
-                self.model_configs = models;
                 self.initialized = true;
             }
             Packet::Velocity(velocity) => self.properties.velocity += velocity,
@@ -251,7 +247,7 @@ impl MovementPlugin {
         }
 
         if acceleration != Vec3::ZERO {
-            acceleration = acceleration.normalize() * 60.0;
+            acceleration = acceleration.normalize() * 30.0;
         }
 
         if self.pressed_keys.contains(&fmc::Key::Control) {
@@ -276,7 +272,7 @@ impl MovementPlugin {
             });
         }
 
-        let friction = 0.9;
+        let friction = 2.5;
         let mass = 1.0;
         self.properties.velocity *= (-friction / mass * self.delta_time).exp();
     }
@@ -370,17 +366,16 @@ impl MovementPlugin {
             }
 
             for model_id in fmc::get_models(player_aabb.min(), player_aabb.max()) {
-                if !self.models.contains(&model_id) {
+                let Some(config) = self.models.get(&model_id) else {
                     continue;
-                }
-                let model_config = &self.model_configs[model_id as usize];
+                };
 
-                let model_transform = fmc::get_model_transform(model_id);
+                let transform = fmc::get_model_transform(model_id);
 
                 let Some(intersection) = player_collider.intersection(
                     &pos_after_move,
-                    &model_transform,
-                    &model_config.collider,
+                    &transform,
+                    &config.collider,
                 ) else {
                     continue;
                 };
@@ -389,7 +384,7 @@ impl MovementPlugin {
                     &mut self.properties,
                     &mut move_back,
                     &mut friction,
-                    &model_config,
+                    &config,
                     velocity,
                     intersection,
                     delta_time,
@@ -665,7 +660,9 @@ impl Collider {
         let min = aabb.min().floor().as_ivec3();
         let max = aabb.max().floor().as_ivec3();
         (min.x..=max.x).flat_map(move |x| {
-            (min.z..=max.z).flat_map(move |z| (min.y..=max.y).map(move |y| IVec3::new(x, y, z)))
+            (min.z..=max.z).flat_map(move |z| {
+                (min.y..=max.y).map(move |y| IVec3::new(x, y, z))
+            })
         })
     }
 
@@ -709,7 +706,10 @@ impl BlockState {
                 1 => DQuat::from_rotation_y(std::f64::consts::FRAC_PI_2),
                 2 => DQuat::from_rotation_y(std::f64::consts::PI),
                 3 => DQuat::from_rotation_y(-std::f64::consts::FRAC_PI_2),
-                _ => unreachable!(),
+                _ => {
+                    fmc::log(&format!("unknown rotation: {}", self.0));
+                    DQuat::IDENTITY
+                }
             }
         } else {
             return DQuat::IDENTITY;
