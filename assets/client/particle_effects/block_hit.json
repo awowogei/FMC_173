@@ -1,0 +1,20 @@
+{
+    "position": {
+        "shape": "circle",
+        "center": [0.0, 0.0, 0.0],
+        "radius": 0.3,
+        "sampling": "volume"
+    },
+    "velocity": {
+        "shape": "sphere",
+        "center": [0.0, -1.0, 0.0],
+        "speed": [0.0, 2.5]
+    },
+    "count": 4,
+    "lifetime": [0.3, 1.0],
+    "acceleration": [0.0, -28.0, 0.0],
+    "friction": [3.5, 2.5, 3.5],
+    "collision": true,
+    "size_range": [0.1, 0.2],
+    "random_uv": [2, 4]
+}

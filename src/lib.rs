@@ -1,5 +1,6 @@
 mod assets;
 pub mod chat;
+pub mod explosions;
 pub mod items;
 pub mod mobs;
 pub mod players;
@@ -30,5 +31,6 @@ impl PluginGroup for DefaultPlugins {
             .add(skybox::SkyPlugin)
             .add(mobs::MobsPlugin)
             .add(chat::ChatPlugin)
+            .add(explosions::ExplosionsPlugin)
     }
 }

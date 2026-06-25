@@ -6,7 +6,8 @@ use fmc::{
     items::{ItemStack, Items},
     models::{AnimationPlayer, Model, ModelConfig, ModelMap, ModelVisibility, Models},
     networking::{NetworkMessage, Server},
-    physics::{Collider, shapes::Aabb},
+    particle_effects::ParticleEffects,
+    physics::{Collider, GRAVITY, shapes::Aabb},
     players::{Camera, Player, Target, Targets},
     prelude::*,
     protocol::messages,
@@ -169,6 +170,7 @@ fn break_blocks(
     items: Res<Items>,
     models: Res<Models>,
     world_map: Res<WorldMap>,
+    particle_effects: Res<ParticleEffects>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     inventory_query: Query<&Inventory, With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
@@ -212,7 +214,7 @@ fn break_blocks(
                 let chunk_position = ChunkPosition::from(block_position);
                 if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
                     if let Some(particle_effect) =
-                        hit_particles(block_config, block_face, hit_position)
+                        hit_particles(block_config, block_face, hit_position, &particle_effects)
                     {
                         net.send_many(subscribers, particle_effect);
                     }
@@ -303,7 +305,9 @@ fn break_blocks(
             let chunk_position = ChunkPosition::from(block_position);
             if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
                 let position = block_position.as_dvec3() + DVec3::splat(0.5);
-                if let Some(particle_effect) = break_particles(block_config, position) {
+                if let Some(particle_effect) =
+                    break_particles(block_config, position, &particle_effects)
+                {
                     net.send_many(subscribers, particle_effect);
                 }
 
@@ -426,23 +430,11 @@ fn hit_particles(
     block_config: &BlockConfig,
     block_face: BlockFace,
     position: DVec3,
+    particle_effects: &ParticleEffects,
 ) -> Option<messages::ParticleEffect> {
     let Some(particle_texture) = block_config.particle_texture(block_face) else {
         return None;
     };
-
-    let direction = block_face
-        .shift_position(BlockPosition::default())
-        .as_vec3();
-    let spawn_offset = Vec3::select(direction.cmpeq(Vec3::ZERO), Vec3::splat(0.4), Vec3::ZERO);
-
-    const VELOCITY: Vec3 = Vec3::new(2.5, 1.5, 2.5);
-    let mut min_velocity = Vec3::select(direction.cmpeq(Vec3::ZERO), -VELOCITY, Vec3::ZERO);
-    min_velocity.y = 0.0;
-
-    let mut max_velocity = -min_velocity;
-    max_velocity += direction * 2.0;
-    max_velocity.y = max_velocity.y.max(VELOCITY.y);
 
     // Need to offset so the particle's aabb won't be inside the block
     let block_face_offset = block_face
@@ -450,39 +442,31 @@ fn hit_particles(
         .as_dvec3()
         * 0.15;
 
-    Some(messages::ParticleEffect::Explosion {
+    Some(messages::ParticleEffect {
+        id: particle_effects.get_id("block_hit").unwrap(),
         position: position + block_face_offset,
-        spawn_offset,
-        size_range: (0.1, 0.2),
-        min_velocity,
-        max_velocity,
-        texture: Some(particle_texture.to_owned()),
-        color: block_config.particle_color(),
-        lifetime: (0.3, 1.0),
-        count: 4,
+        // TODO: Silly quat conversion
+        rotation: block_face.to_quat().as_quat(),
+        texture: particle_texture.to_owned(),
+        color: block_config.particle_color().unwrap_or(Vec4::ONE),
     })
 }
 
 fn break_particles(
     block_config: &BlockConfig,
     position: DVec3,
+    particle_effects: &ParticleEffects,
 ) -> Option<messages::ParticleEffect> {
     let Some(particle_texture) = block_config.particle_texture(BlockFace::Bottom) else {
         return None;
     };
 
-    const VELOCITY: Vec3 = Vec3::new(7.0, 5.0, 7.0);
-
-    Some(messages::ParticleEffect::Explosion {
+    Some(messages::ParticleEffect {
+        id: particle_effects.get_id("block_break").unwrap(),
         position,
-        spawn_offset: Vec3::splat(0.2),
-        size_range: (0.2, 0.3),
-        min_velocity: -VELOCITY,
-        max_velocity: VELOCITY,
-        texture: Some(particle_texture.to_owned()),
-        color: block_config.particle_color(),
-        lifetime: (0.3, 1.0),
-        count: 20,
+        rotation: Quat::IDENTITY,
+        texture: particle_texture.to_owned(),
+        color: block_config.particle_color().unwrap_or(Vec4::ONE),
     })
 }
 
@@ -836,8 +820,7 @@ fn handle_right_clicks(
                         let chunk_position = ChunkPosition::from(replaced_block_position);
 
                         let rotation = block_state
-                            .map(BlockState::rotation)
-                            .flatten()
+                            .map(BlockRotation::from)
                             .map(BlockRotation::as_quat)
                             .unwrap_or_default();
 
