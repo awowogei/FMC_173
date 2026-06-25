@@ -1,0 +1,6 @@
+{
+    "name": "Spider crate",
+    "image": "spider_crate.png",
+    "equip_model": "spider_crate",
+    "stack_size": 64
+}

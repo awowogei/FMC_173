@@ -5,7 +5,7 @@
         "pattern": [
             [["stick", 1]]
         ],
-        "output_item": "zombie_crate",
+        "output_item": "cow_crate",
         "output_amount": 1
     }
 ]

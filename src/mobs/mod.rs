@@ -6,7 +6,7 @@ use fmc::{
     items::{DropTable, ItemStack, Items},
     models::{Model, ModelColor, ModelVisibility, Models},
     networking::Server,
-    physics::Physics,
+    physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     protocol::messages,
@@ -25,9 +25,11 @@ use crate::{
 };
 
 pub mod cow;
+pub mod creeper;
 pub mod duck;
 mod pathfinding;
 pub mod skeleton;
+pub mod spider;
 pub mod zombie;
 
 pub struct MobsPlugin;
@@ -40,6 +42,8 @@ impl Plugin for MobsPlugin {
             .add_plugins(zombie::ZombiePlugin)
             .add_plugins(skeleton::SkeletonPlugin)
             .add_plugins(cow::CowPlugin)
+            .add_plugins(creeper::CreeperPlugin)
+            .add_plugins(spider::SpiderPlugin)
             .add_systems(
                 Update,
                 (
@@ -59,6 +63,12 @@ impl Plugin for MobsPlugin {
 }
 
 pub type MobId = usize;
+
+#[derive(Component)]
+#[require(Transform, ModelColor)]
+pub struct Mob {
+    pub id: MobId,
+}
 
 pub struct MobConfig {
     pub spawn_function: Box<dyn Fn(&mut EntityCommands) + Send + Sync + 'static>,
@@ -397,12 +407,6 @@ impl MobRandomSound {
     }
 }
 
-#[derive(Component)]
-#[require(Transform)]
-pub struct Mob {
-    pub id: MobId,
-}
-
 #[derive(Component, Serialize, Deserialize, Clone)]
 pub struct MobHealth {
     hearts: u32,
@@ -505,15 +509,18 @@ fn damage_mobs(
     items: Res<Items>,
     mut mob_query: Query<(
         Entity,
-        &mut Mob,
+        &Mob,
+        &Collider,
         &mut MobHealth,
         &mut Transform,
-        Option<&mut ModelColor>,
+        &mut ModelColor,
     )>,
     mut damage_events: MessageReader<MobDamageEvent>,
     mut rng: Local<Rng>,
 ) {
-    for (mob_entity, mob, mut health, mut mob_transform, mut maybe_color) in mob_query.iter_mut() {
+    for (mob_entity, mob, collider, mut health, mut mob_transform, mut color) in
+        mob_query.iter_mut()
+    {
         if !health.is_invincible() {
             continue;
         };
@@ -523,6 +530,8 @@ fn damage_mobs(
         if health.is_dead()
             && let Some(timer) = &health.invincibility
         {
+            let config = mobs.get_config(mob.id);
+
             let delta = (timer.elapsed_secs_f64() / 0.25).min(1.0);
             let mut r = mob_transform.rotation;
             r.z = 0.0;
@@ -540,14 +549,12 @@ fn damage_mobs(
                 commands.entity(mob_entity).despawn();
             }
 
-            if let Some(mut color) = maybe_color {
-                *color = ModelColor::new(1.0, 1.0, 1.0, 1.0);
-            }
+            *color = ModelColor::new(1.0, 1.0, 1.0, 1.0);
         }
     }
 
     for damage_event in damage_events.read() {
-        let Ok((mob_entity, mut mob, mut health, transform, mut maybe_color)) =
+        let Ok((mob_entity, mut mob, _, mut health, transform, mut color)) =
             mob_query.get_mut(damage_event.mob_entity)
         else {
             continue;
@@ -588,11 +595,7 @@ fn damage_mobs(
         }
 
         let damage_red = ModelColor::new(1.0, 0.5, 0.5, 1.0);
-        if let Some(color) = maybe_color.as_deref_mut() {
-            *color = damage_red;
-        } else {
-            commands.entity(mob_entity).insert(damage_red);
-        }
+        *color = damage_red;
 
         if health.is_dead() && !config.sounds.death.is_empty() {
             let sound_index = rng.next_usize() % config.sounds.death.len();

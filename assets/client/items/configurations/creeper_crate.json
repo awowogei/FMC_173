@@ -1,0 +1,6 @@
+{
+    "name": "Creeper crate",
+    "image": "creeper_crate.png",
+    "equip_model": "creeper_crate",
+    "stack_size": 64
+}

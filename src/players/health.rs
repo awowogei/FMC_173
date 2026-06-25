@@ -144,18 +144,14 @@ impl Default for FallDamage {
 }
 
 fn fall_damage(
-    mut fall_damage_query: Query<(&mut FallDamage, &GameMode), With<Player>>,
+    mut fall_damage_query: Query<&mut FallDamage, With<Player>>,
     mut position_events: MessageReader<NetworkMessage<messages::PlayerPosition>>,
     mut damage_events: MessageWriter<PlayerDamageEvent>,
 ) {
     for position_update in position_events.read() {
-        let (mut fall_damage, game_mode) = fall_damage_query
+        let mut fall_damage = fall_damage_query
             .get_mut(position_update.player_entity)
             .unwrap();
-
-        if *game_mode != GameMode::Survival {
-            continue;
-        }
 
         let now = std::time::Instant::now();
         // TODO: The velocity is not stable when falling? Varies greatly from values of -8 to -3
@@ -192,6 +188,7 @@ fn change_health(
     time: Res<Time>,
     mut health_query: Query<(
         Entity,
+        &GameMode,
         &Transform,
         &mut Inventory,
         Mut<Equipment>,
@@ -201,7 +198,7 @@ fn change_health(
     mut heal_events: MessageReader<HealEvent>,
     mut rng: Local<Rng>,
 ) {
-    for (player_entity, _, _, _, mut health) in health_query.iter_mut() {
+    for (player_entity, _, _, _, _, mut health) in health_query.iter_mut() {
         if let Some(invincibility_timer) = &mut health.invincibility {
             invincibility_timer.tick(time.delta());
             if invincibility_timer.just_finished() {
@@ -224,10 +221,10 @@ fn change_health(
     }
 
     for damage_event in damage_events.read() {
-        let (_, transform, mut inventory, mut equipment, mut health) =
+        let (_, game_mode, transform, mut inventory, mut equipment, mut health) =
             health_query.get_mut(damage_event.player_entity).unwrap();
 
-        if health.is_dead() || health.is_invincible() {
+        if health.is_dead() || health.is_invincible() || *game_mode != GameMode::Survival {
             continue;
         }
 
@@ -255,7 +252,7 @@ fn change_health(
         });
 
         if health.is_dead() {
-            // Reborrow to enable split borrowing
+            // Reborrow to allow split borrowing
             let equipment = equipment.into_inner();
 
             for item_stack in inventory.iter_mut().chain([
@@ -296,7 +293,7 @@ fn change_health(
     }
 
     for heal_event in heal_events.read() {
-        let (_, _, _, _, mut health) = health_query.get_mut(heal_event.player_entity).unwrap();
+        let (_, _, _, _, _, mut health) = health_query.get_mut(heal_event.player_entity).unwrap();
         let interface_update = health.heal(heal_event.healing);
         net.send_one(heal_event.player_entity, interface_update);
     }

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use fmc::{
     bevy::{
         ecs::query::QueryData,
@@ -121,6 +119,7 @@ pub struct Equipment {
     pub boots: ItemStack,
 }
 
+// TODO: Steal "Player" struct name from fmc lib and consolidate some of these components
 /// Components a player consists of
 #[derive(Bundle)]
 pub struct PlayerBundle {
