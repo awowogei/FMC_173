@@ -68,7 +68,7 @@ fn get_asset_paths() -> Vec<PathBuf> {
             continue;
         }
 
-        let package = &meta.packages[index_lookup[&dependency.name]];
+        let package = &meta.packages[index_lookup[dependency.name.as_str()]];
 
         asset_paths_unsorted.insert(
             package.name.clone(),
