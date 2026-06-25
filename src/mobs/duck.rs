@@ -71,7 +71,7 @@ fn spawn_duck(
             }),
             ..default()
         },
-        PathFinder::new(1, 1),
+        PathFinder::new(1, 1, 1),
         HandInteractions::default(),
     ));
 }

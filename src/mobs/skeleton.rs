@@ -75,7 +75,7 @@ impl Default for SkeletonBundle {
             health: MobHealth::new(20),
             skeleton: Skeleton::new(),
             physics: Physics::default(),
-            path_finder: PathFinder::new(1, 1),
+            path_finder: PathFinder::new(2, 1, 1),
             collider: Collider::from_min_max(
                 DVec3::new(-0.3, 0.0, -0.3),
                 DVec3::new(0.3, 1.8, 0.3),
@@ -165,7 +165,7 @@ fn setup(
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_skeleton),
         sounds: MobSoundCollection::default(),
-        drop_table: DropTable::new(1.0, &vec![1.0], &vec![(feather, 0, 2)]).unwrap(),
+        drop_table: DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap(),
     });
 
     random_mobs.add_hostile(4, mob_id);
@@ -278,16 +278,15 @@ fn follow_path(
 
         // TODO: Should not jump out of water, accelerate only so it looks more like a step up.
         if next_position.y - transform.translation.y > 0.1
-            // Jump only when it hits a wall
-            && (physics.grounded.x || physics.grounded.z)
-            && physics.grounded.y
+            && physics.is_against_wall()
+            && physics.is_grounded()
         {
             physics.velocity.y = JUMP_VELOCITY;
         }
 
         let mut acceleration = 20.0;
 
-        if !physics.grounded.y {
+        if !physics.is_grounded() {
             acceleration *= 0.1;
         }
 

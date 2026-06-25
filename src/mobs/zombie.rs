@@ -9,14 +9,12 @@ use fmc::{
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
-    random::{Rng, UniformDistribution},
     world::WorldMap,
 };
 
 use crate::{
     items::spawn_crates::MobCrates,
     players::{GameMode, HandHits, PlayerDamageEvent},
-    skybox::Clock,
 };
 
 use super::{
@@ -62,7 +60,7 @@ impl Default for ZombieBundle {
             health: MobHealth::new(20),
             zombie: Zombie::default(),
             physics: Physics::default(),
-            path_finder: PathFinder::new(1, 1),
+            path_finder: PathFinder::new(2, 1, 1),
             // TODO: This is done because aabbs are rotated during collision detection(blocks that are
             // rotatable use the same code). If it rotates when it is near a block it will phase because it
             // is wider in one direction. Unclear what to do about it. Just forcing it out when an
@@ -89,19 +87,19 @@ fn setup(
     mut mob_crates: ResMut<MobCrates>,
     models: Res<Models>,
 ) {
-    let connection = database.get_write_connection();
-    connection
-        .execute(
-            "create table if not exists zombies (
-            x REAL,
-            y REAL,
-            z REAL,
-            data BLOB,
-            PRIMARY KEY (x,y,z)
-         )",
-            [],
-        )
-        .expect("Could not create 'zombies' table");
+    // let connection = database.get_write_connection();
+    // connection
+    //     .execute(
+    //         "create table if not exists zombies (
+    //         x REAL,
+    //         y REAL,
+    //         z REAL,
+    //         data BLOB,
+    //         PRIMARY KEY (x,y,z)
+    //      )",
+    //         [],
+    //     )
+    //     .expect("Could not create 'zombies' table");
 
     let zombie_model = models.get_config_by_name("zombie").unwrap();
     let zombie_id = zombie_model.id;
@@ -136,7 +134,7 @@ fn setup(
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_zombie),
         sounds,
-        drop_table: DropTable::new(1.0, &vec![1.0], &vec![(feather, 0, 2)]).unwrap(),
+        drop_table: DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap(),
     });
 
     random_mobs.add_hostile(4, mob_id);
@@ -302,9 +300,8 @@ fn follow_path(
 
         // TODO: Should not jump out of water, accelerate only so it looks more like a step up.
         if next_position.y - transform.translation.y > 0.1
-            // Jump only when it hits a wall
-            && (physics.grounded.x || physics.grounded.z)
-            && physics.grounded.y
+            && physics.is_against_wall()
+            && physics.is_grounded()
         {
             physics.velocity.y = JUMP_VELOCITY;
         }
@@ -315,7 +312,7 @@ fn follow_path(
             WANDER_ACCELERATION
         };
 
-        if !physics.grounded.y {
+        if !physics.is_grounded() {
             acceleration *= 0.1;
         }
 

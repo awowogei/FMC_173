@@ -1,31 +1,37 @@
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 
 use fmc::{
     bevy::math::{DVec2, DVec3},
     blocks::{BlockPosition, Blocks},
-    physics::Friction,
     prelude::*,
     world::WorldMap,
 };
 use indexmap::{IndexMap, map::Entry};
+use smallvec::SmallVec;
 
 #[derive(Component)]
 pub struct PathFinder {
-    entity_width: usize,
-    entity_height: usize,
+    height: i32,
+    width: i32,
     start: BlockPosition,
     goal: BlockPosition,
+    previous_node: Option<DVec3>,
     path: Vec<DVec3>,
+    jump_height: u32,
+    movement_cost_cache: HashMap<BlockPosition, Option<f32>>,
 }
 
 impl PathFinder {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(height: u32, width: u32, jump_height: u32) -> Self {
         return Self {
-            entity_width: width,
-            entity_height: height,
+            height: height as i32,
+            width: width as i32,
             start: BlockPosition::default(),
             goal: BlockPosition::default(),
+            previous_node: None,
             path: Vec::new(),
+            jump_height,
+            movement_cost_cache: HashMap::new(),
         };
     }
 
@@ -42,7 +48,16 @@ impl PathFinder {
     }
 
     pub fn find_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
-        let block_start = BlockPosition::from(start);
+        // Even width npcs walk the edges of the blocks while odd width npcs walk the center of blocks.
+        let mut block_start = if self.width % 2 == 0 {
+            BlockPosition::from(DVec3::new(start.x.round(), start.y, start.z.round()))
+        } else {
+            BlockPosition::from(start)
+        };
+        // The start position is the middle of the npc. To make working with it easier we
+        // shift it to one of the corners
+        block_start -= IVec3::new(self.width / 2, 0, self.width / 2);
+
         let block_goal = BlockPosition::from(goal);
         if block_start != block_goal && self.goal != block_goal {
             self.start = block_start;
@@ -51,6 +66,7 @@ impl PathFinder {
             return;
         }
 
+        self.movement_cost_cache.clear();
         self.path.clear();
 
         // Direct paths feel much better, so we always try to find one before fallback to grid
@@ -70,11 +86,9 @@ impl PathFinder {
             },
         );
 
-        let mut potential_successors = Vec::new();
-
         queue.push(Successor {
             node_index: 0,
-            move_cost: 0.0,
+            movement_cost: 0.0,
             heuristic_cost: f32::MAX,
         });
 
@@ -103,18 +117,16 @@ impl PathFinder {
                 continue;
             }
 
-            potential_successors.clear();
-            self.get_potential_successors(node_position, world_map, &mut potential_successors);
-
-            for (position, move_cost, heuristic_cost) in potential_successors.drain(..) {
-                let cost = successor.move_cost + move_cost + heuristic_cost;
+            for potential in self.get_potential_successors(node_position, world_map) {
+                let cost =
+                    successor.movement_cost + potential.movement_cost + potential.heuristic_cost;
                 let node_index;
 
-                match node_map.entry(position) {
-                    Entry::Occupied(mut e) => {
-                        if e.get().cost > cost {
-                            node_index = e.index();
-                            e.insert(PathNode {
+                match node_map.entry(potential.position) {
+                    Entry::Occupied(mut entry) => {
+                        if entry.get().cost > cost {
+                            node_index = entry.index();
+                            entry.insert(PathNode {
                                 parent_index: successor.node_index,
                                 cost,
                             });
@@ -131,15 +143,15 @@ impl PathFinder {
                     }
                 }
 
-                if position == block_goal {
+                if potential.position == block_goal {
                     self.set_path(node_index, &node_map, Some(goal));
                     return;
                 }
 
                 queue.push(Successor {
                     node_index,
-                    move_cost: successor.move_cost + move_cost,
-                    heuristic_cost,
+                    movement_cost: successor.movement_cost + potential.movement_cost,
+                    heuristic_cost: potential.heuristic_cost,
                 });
             }
         }
@@ -184,35 +196,35 @@ impl PathFinder {
             }
 
             if block_position == BlockPosition::from(goal) {
-                // Found path
                 self.path.push(goal);
                 return;
             }
 
-            let above_cost = Self::get_move_cost(world_map, block_position + IVec3::Y);
-            let cost = Self::get_move_cost(world_map, block_position);
-            let below_cost = Self::get_move_cost(world_map, block_position - IVec3::Y);
-            let second_below_cost = Self::get_move_cost(world_map, block_position - IVec3::Y * 2);
+            let above_cost = self.get_movement_cost(world_map, block_position + IVec3::Y);
+            let cost = self.get_movement_cost(world_map, block_position);
+            let below_cost = self.get_movement_cost(world_map, block_position - IVec3::Y);
+            let second_below_cost =
+                self.get_movement_cost(world_map, block_position - IVec3::Y * 2);
 
-            if above_cost == f32::INFINITY {
+            if above_cost.is_none() {
                 // If there's a block at head height, fail
                 return;
             }
 
-            if cost == f32::INFINITY {
+            if cost.is_none() {
                 // jump up one block
                 block_position.y += 1;
                 continue;
             }
 
-            if below_cost == f32::INFINITY {
+            if below_cost.is_none() {
                 // Move forward
                 continue;
             } else {
                 // Move down one block
                 block_position.y -= 1;
 
-                if second_below_cost != f32::INFINITY {
+                if second_below_cost.is_some() {
                     // fall down
                     block_position.y -= 1;
                 }
@@ -220,36 +232,64 @@ impl PathFinder {
         }
     }
 
-    // TODO: Mobs move very rigidly because they follow the grid. Path smoothing isn't enough to
-    // make it good, it stills feels like the mob takes a weird detour. The best feeling path is just
-    // moving directly towards the player. Instead of doing some costly post process step to
-    // identify straight lines, maybe just check the direct path to the player and fall back to
-    // normal grid following if it's not possible.
     pub fn next_node(&mut self, current_postition: DVec3) -> Option<DVec3> {
         while let Some(next_position) = self.path.last() {
-            if next_position.xz().distance_squared(current_postition.xz()) >= 0.5 {
+            if next_position.xz().distance_squared(current_postition.xz()) >= 0.25 {
                 return Some(*next_position);
             }
 
-            self.path.pop();
+            self.previous_node = self.path.pop();
         }
         None
     }
 
-    fn get_move_cost(world_map: &WorldMap, position: BlockPosition) -> f32 {
-        if let Some(block_id) = world_map.get_block(position) {
-            let block_config = Blocks::get().get_config(&block_id);
-            if let Some(drag) = block_config.drag() {
-                drag.max_element() as f32
-            } else {
-                f32::INFINITY
-            }
-        } else {
-            f32::INFINITY
-        }
+    pub fn previous_node(&self) -> Option<DVec3> {
+        self.previous_node
     }
 
-    fn get_heuristic_cost(&self, position: BlockPosition) -> f32 {
+    fn get_movement_cost(&mut self, world_map: &WorldMap, position: BlockPosition) -> Option<f32> {
+        if let Some(cached) = self.movement_cost_cache.get(&position) {
+            return *cached;
+        }
+
+        let compute_cost = |position: BlockPosition| -> Option<f32> {
+            if let Some(block_id) = world_map.get_block(position) {
+                let block_config = Blocks::get().get_config(&block_id);
+                if let Some(drag) = block_config.drag() {
+                    return Some(drag.max_element() as f32);
+                }
+            }
+
+            return None;
+        };
+
+        let mut movement_cost = Some(0.0);
+
+        for x in 0..self.width {
+            for z in 0..self.width {
+                for y in 0..self.height {
+                    let position = position + IVec3::new(x, y, z);
+                    if let Some(mc) = compute_cost(position) {
+                        movement_cost
+                            .as_mut()
+                            .map(|movement_cost| *movement_cost += mc);
+                    } else {
+                        // Even if we could exit early here, we continue iterating to add all
+                        // non-traversable blocks to the cache so we'll exit earlier on consecutive
+                        // cost lookups.
+                        self.movement_cost_cache.insert(position, None);
+                        movement_cost = None;
+                    }
+                }
+            }
+        }
+
+        self.movement_cost_cache.insert(position, movement_cost);
+
+        return movement_cost;
+    }
+
+    fn heuristic_cost(&self, position: BlockPosition) -> f32 {
         position.distance_squared(*self.goal) as f32
         //let delta = (position - self.goal).abs().as_vec3();
 
@@ -278,62 +318,50 @@ impl PathFinder {
     }
 
     fn get_potential_successors(
-        &self,
+        &mut self,
         position: &BlockPosition,
         world_map: &WorldMap,
-        successors: &mut Vec<(BlockPosition, f32, f32)>,
-    ) {
-        let above_cost = Self::get_move_cost(world_map, *position + IVec3::Y);
+    ) -> SmallVec<[PotentialSuccessor; 4]> {
+        let mut potential_successors = SmallVec::default();
+        for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z].iter() {
+            let offset_position = *position + *offset;
 
-        let max_steps = if above_cost == f32::INFINITY { 0 } else { 1 };
-
-        let get_successor = |offset: IVec3| -> (BlockPosition, f32, f32) {
-            let mut position = *position + offset;
-
-            let mut move_cost = Self::get_move_cost(world_map, position);
-
-            if move_cost == f32::INFINITY && max_steps == 1 {
+            if let Some(mut movement_cost) = self.get_movement_cost(world_map, offset_position) {
+                // If it can move horizontally, check if and how far it will fall
+                // Hardcoded to only fall a maximum of two blocks
+                for steps in 1..=2 {
+                    let below_position = offset_position - IVec3::new(0, steps, 0);
+                    if let Some(below_cost) = self.get_movement_cost(world_map, below_position) {
+                        movement_cost += below_cost;
+                    } else {
+                        let position = offset_position - IVec3::new(0, steps - 1, 0);
+                        potential_successors.push(PotentialSuccessor {
+                            position,
+                            movement_cost,
+                            heuristic_cost: self.heuristic_cost(position),
+                        });
+                        break;
+                    }
+                }
+            } else if self.jump_height > 0 {
                 // Hit a wall, try to jump up
-                position += IVec3::new(0, 1, 0);
-                move_cost = Self::get_move_cost(world_map, position);
-                (position, move_cost + 1.0, self.get_heuristic_cost(position))
-            } else {
-                let mut steps = 0;
-                loop {
-                    if steps > 2 {
-                        return (position, f32::INFINITY, f32::INFINITY);
+                for j in 1..=self.jump_height as i32 {
+                    let jump_position = offset_position + IVec3::new(0, j, 0);
+                    let above_position = *position + IVec3::new(0, j, 0);
+                    if let Some(movement_cost) = self.get_movement_cost(world_map, jump_position)
+                        && self.get_movement_cost(world_map, above_position).is_some()
+                    {
+                        potential_successors.push(PotentialSuccessor {
+                            position: jump_position,
+                            movement_cost: movement_cost + j as f32,
+                            heuristic_cost: self.heuristic_cost(jump_position),
+                        });
                     }
-
-                    let below_cost =
-                        Self::get_move_cost(world_map, position - IVec3::new(0, steps + 1, 0));
-                    if below_cost == f32::INFINITY {
-                        move_cost += steps as f32;
-
-                        position -= IVec3::new(0, steps, 0);
-                        return (position, move_cost, self.get_heuristic_cost(position));
-                    }
-
-                    move_cost += below_cost;
-                    steps += 1;
                 }
             }
-        };
-
-        for offset in [
-            IVec3::X,
-            IVec3::NEG_X,
-            IVec3::Z,
-            IVec3::NEG_Z,
-            IVec3::X + IVec3::Z,
-            IVec3::X - IVec3::Z,
-            -IVec3::X + IVec3::Z,
-            -IVec3::X - IVec3::Z,
-        ] {
-            let (node_position, move_cost, heuristic_cost) = get_successor(offset);
-            if move_cost != f32::INFINITY {
-                successors.push((node_position, move_cost, heuristic_cost));
-            }
         }
+
+        return potential_successors;
     }
 
     fn set_path(
@@ -342,9 +370,7 @@ impl PathFinder {
         node_map: &IndexMap<BlockPosition, PathNode>,
         accurate_goal: Option<DVec3>,
     ) {
-        let mut xz_offset = DVec3::splat(self.entity_width as f64 * 0.5);
-        xz_offset.y = 0.0;
-
+        let xz_offset = DVec3::new(self.width as f64 / 2.0, 0.0, self.width as f64 / 2.0);
         while index != usize::MAX {
             let (position, path_node) = node_map.get_index(index).unwrap();
 
@@ -358,7 +384,7 @@ impl PathFinder {
         if let Some(accurate_goal) = accurate_goal {
             self.path[0] = accurate_goal;
         }
-        // Same, but since the mob will already be at the start position, it can be removed.
+        // Same, but since the npc will already be at the start position, it can be removed.
         self.path.pop();
     }
 }
@@ -369,18 +395,24 @@ struct PathNode {
     cost: f32,
 }
 
-// A potential new best path node
+struct PotentialSuccessor {
+    position: BlockPosition,
+    movement_cost: f32,
+    heuristic_cost: f32,
+}
+
+// A possible new best path node
 struct Successor {
     node_index: usize,
     // The cumulative move cost of the node
-    move_cost: f32,
+    movement_cost: f32,
     // The node's distance from the goal
     heuristic_cost: f32,
 }
 
 impl Successor {
     fn cost(&self) -> f32 {
-        self.move_cost + self.heuristic_cost
+        self.movement_cost + self.heuristic_cost
     }
 }
 
@@ -395,7 +427,7 @@ impl Ord for Successor {
 
 impl PartialEq for Successor {
     fn eq(&self, other: &Self) -> bool {
-        self.move_cost.eq(&other.move_cost) && self.heuristic_cost.eq(&other.heuristic_cost)
+        self.movement_cost.eq(&other.movement_cost) && self.heuristic_cost.eq(&other.heuristic_cost)
     }
 }
 

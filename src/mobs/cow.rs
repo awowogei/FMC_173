@@ -52,7 +52,8 @@ impl Cow {
         };
 
         cow.reset_wander_timer();
-        cow
+
+        return cow;
     }
 
     fn reset_wander_timer(&mut self) {
@@ -80,7 +81,7 @@ impl Default for CowBundle {
             health: MobHealth::new(20),
             cow: Cow::new(),
             physics: Physics::default(),
-            path_finder: PathFinder::new(1, 1),
+            path_finder: PathFinder::new(2, 1, 1),
             // TODO: This is done because aabbs are rotated during collision detection(blocks that are
             // rotatable use the same code). If it rotates when it is near a block it will phase because it
             // is wider in one direction. Unclear what to do about it. Just forcing it out when an
@@ -148,7 +149,7 @@ fn setup(
     let sounds = MobSoundCollection::default();
 
     let leather = items.get_id("leather").unwrap();
-    let drop_table = DropTable::new(1.0, &vec![1.0], &vec![(leather, 0, 2)]).unwrap();
+    let drop_table = DropTable::new(1.0, &vec![(leather, 1.0, 0, 2)]).unwrap();
 
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_function),
@@ -198,16 +199,15 @@ fn follow_path(
 
         // TODO: Should not jump out of water, accelerate only so it looks more like a step up.
         if next_position.y - transform.translation.y > 0.1
-            // Jump only when it hits a wall
-            && (physics.grounded.x || physics.grounded.z)
-            && physics.grounded.y
+            && physics.is_against_wall()
+            && physics.is_grounded()
         {
             physics.velocity.y = JUMP_VELOCITY;
         }
 
         let mut acceleration = WALKING_ACCELERATION;
 
-        if !physics.grounded.y {
+        if !physics.is_grounded() {
             acceleration *= 0.1;
         }
 
