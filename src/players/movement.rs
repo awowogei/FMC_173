@@ -183,7 +183,7 @@ fn send_block_models(
 
                     if block_config.is_solid() {
                         nearby_models.insert(
-                            model_entity.index() as ModelId,
+                            model_entity.index_u32() as ModelId,
                             CollisionConfig {
                                 collider: Vec3Collider::from(&block_config.collider),
                                 friction: Vec3Friction::from(&block_config.friction),

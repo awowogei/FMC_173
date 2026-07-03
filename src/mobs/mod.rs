@@ -806,7 +806,7 @@ fn look_around(
             net.send_one(
                 *subscribers.iter().take(1).next().unwrap(),
                 messages::ModelUpdateTransform {
-                    model_id: entity.index(),
+                    model_id: entity.index_u32(),
                     bone: Some(*bone),
                     position: DVec3::ZERO,
                     rotation,
