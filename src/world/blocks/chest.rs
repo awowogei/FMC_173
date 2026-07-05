@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use fmc::{
     bevy::ecs::system::EntityCommands,
     blocks::{BlockData, BlockPosition, Blocks},
-    interfaces::{HeldInterfaceStack, InterfaceEvents, RegisterInterfaceNode},
+    interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::ItemStack,
     networking::Server,
     players::Player,
@@ -22,7 +22,11 @@ impl Plugin for ChestPlugin {
             .add_systems(Startup, setup)
             .add_systems(
                 Update,
-                (handle_block_hits, handle_interface_events, handle_despawn),
+                (
+                    handle_block_hits,
+                    handle_interface_events.in_set(InterfaceSystems::HandleEvents),
+                    handle_despawn,
+                ),
             );
     }
 }
@@ -123,23 +127,7 @@ fn handle_interface_events(
         for event in events.read() {
             let mut held_item = player_query.get_mut(event.player_entity).unwrap();
 
-            if let messages::InterfaceInteraction::TakeItem {
-                quantity, index, ..
-            } = *event
-            {
-                let Some(item_stack) = chest.inventory.get_mut(index as usize) else {
-                    continue;
-                };
-                item_stack.transfer_to(&mut held_item, quantity);
-            } else if let messages::InterfaceInteraction::PlaceItem {
-                quantity, index, ..
-            } = *event
-            {
-                let Some(item_stack) = chest.inventory.get_mut(index as usize) else {
-                    continue;
-                };
-                held_item.transfer_to(item_stack, quantity);
-            }
+            held_item.transfer(&event, &mut chest.inventory);
 
             block_update_writer.write(BlockUpdate::Data {
                 position: *block_position,

@@ -5,9 +5,7 @@ use fmc::{
     },
     blocks::{BlockPosition, Blocks},
     database::Database,
-    interfaces::{
-        HeldInterfaceStack, InterfaceEventRegistration, InterfaceEvents, RegisterInterfaceNode,
-    },
+    interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::ItemStack,
     models::{AnimationPlayer, Model, Models, Observers},
     networking::{NetworkEvent, NetworkMessage, Server},
@@ -55,7 +53,7 @@ impl Plugin for PlayerPlugin {
                     (add_players, ApplyDeferred).chain(),
                     respawn_players,
                     rotate_player_model,
-                    discard_items.after(InterfaceEventRegistration),
+                    discard_items.after(InterfaceSystems::HandleEvents),
                 ),
             )
             // Save player after all remaining events have been handled. Avoid dupes and other

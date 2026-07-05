@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use fmc::{
     bevy::ecs::system::EntityCommands,
     blocks::{BlockData, Blocks},
-    interfaces::{HeldInterfaceStack, InterfaceEvents, RegisterInterfaceNode},
+    interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::{ItemStack, Items},
     networking::Server,
     players::Player,
@@ -24,7 +24,11 @@ impl Plugin for CraftingTablePlugin {
             .add_systems(Startup, setup)
             .add_systems(
                 Update,
-                (handle_block_hits, handle_interface_events, handle_despawn),
+                (
+                    handle_block_hits,
+                    handle_interface_events.in_set(InterfaceSystems::HandleEvents),
+                    handle_despawn,
+                ),
             );
     }
 }

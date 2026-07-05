@@ -1,7 +1,5 @@
 use fmc::{
-    interfaces::{
-        HeldInterfaceStack, InterfaceEventRegistration, InterfaceEvents, RegisterInterfaceNode,
-    },
+    interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::{ItemStack, Items},
     networking::{NetworkMessage, Server},
     players::Player,
@@ -32,7 +30,7 @@ impl Plugin for InventoryInterfacePlugin {
                     handle_crafting_input_events,
                     handle_crafting_output_events,
                 )
-                    .after(InterfaceEventRegistration),
+                    .in_set(InterfaceSystems::HandleEvents),
                 equip_item,
             ),
         );
@@ -204,25 +202,7 @@ fn handle_inventory_events(
         let inventory = inventory.bypass_change_detection();
 
         for event in events.read() {
-            match *event {
-                messages::InterfaceInteraction::TakeItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = inventory.get_mut(index as usize + 9) else {
-                        continue;
-                    };
-                    item_stack.transfer_to(&mut held_item, quantity);
-                }
-                messages::InterfaceInteraction::PlaceItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = inventory.get_mut(index as usize + 9) else {
-                        continue;
-                    };
-                    held_item.transfer_to(item_stack, quantity);
-                }
-                _ => continue,
-            }
+            held_item.transfer(&event, &mut inventory[9..]);
         }
     }
 }
@@ -242,25 +222,7 @@ fn handle_hotbar_events(
         let inventory = inventory.bypass_change_detection();
 
         for event in events.read() {
-            match *event {
-                messages::InterfaceInteraction::TakeItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = inventory.get_mut(index as usize) else {
-                        continue;
-                    };
-                    item_stack.transfer_to(&mut held_item, quantity);
-                }
-                messages::InterfaceInteraction::PlaceItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = inventory.get_mut(index as usize) else {
-                        continue;
-                    };
-                    held_item.transfer_to(item_stack, quantity);
-                }
-                _ => continue,
-            }
+            held_item.transfer(&event, &mut inventory[..9]);
         }
     }
 }
@@ -367,25 +329,7 @@ fn handle_crafting_input_events(
         let (player_entity, mut held_item, mut crafting_input) =
             inventory_query.get_mut(parent.0).unwrap();
         for event in events.read() {
-            match *event {
-                messages::InterfaceInteraction::TakeItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = crafting_input.get_mut(index as usize) else {
-                        continue;
-                    };
-                    item_stack.transfer_to(&mut held_item, quantity);
-                }
-                messages::InterfaceInteraction::PlaceItem {
-                    index, quantity, ..
-                } => {
-                    let Some(item_stack) = crafting_input.get_mut(index as usize) else {
-                        continue;
-                    };
-                    held_item.transfer_to(item_stack, quantity);
-                }
-                _ => continue,
-            }
+            held_item.transfer(&event, &mut crafting_input);
 
             let mut update = messages::InterfaceItemBoxUpdate::default();
 
@@ -488,7 +432,7 @@ fn equip_item(
 ) {
     for equip_event in equip_events.read() {
         if equip_event.interface_path != "hotbar" {
-            return;
+            continue;
         }
 
         if equip_event.index > 8 {

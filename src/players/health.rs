@@ -1,6 +1,6 @@
 use fmc::{
     bevy::math::DVec3,
-    interfaces::{InterfaceEventRegistration, InterfaceEvents, RegisterInterfaceNode},
+    interfaces::{InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::ItemStack,
     networking::{NetworkMessage, Server},
     physics::Physics,
@@ -27,7 +27,7 @@ impl Plugin for HealthPlugin {
                     register_death_interface,
                     change_health,
                     fall_damage.before(change_health),
-                    death_interface.after(InterfaceEventRegistration),
+                    death_interface.in_set(InterfaceSystems::HandleEvents),
                 ),
             );
     }

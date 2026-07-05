@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use fmc::{
     bevy::ecs::system::EntityCommands,
     blocks::{BlockData, BlockPosition, Blocks},
-    interfaces::{HeldInterfaceStack, InterfaceEvents, RegisterInterfaceNode},
+    interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::{ItemStack, Items},
     networking::Server,
     players::Player,
@@ -28,7 +28,7 @@ impl Plugin for FurnacePlugin {
                 (
                     handle_block_hits,
                     furnace,
-                    handle_interface_events,
+                    handle_interface_events.in_set(InterfaceSystems::HandleEvents),
                     handle_despawn,
                 ),
             );
