@@ -322,6 +322,10 @@ impl MovementPlugin {
 
                 let block_config = &self.block_configs[block_id as usize];
 
+                if block_config.is_model {
+                    continue;
+                }
+
                 let rotation = if let Some(block_state) = fmc::get_block_state(block_pos) {
                     BlockState(block_state).rotation()
                 } else {
@@ -365,7 +369,8 @@ impl MovementPlugin {
                 );
             }
 
-            for model_id in fmc::get_models(player_aabb.min(), player_aabb.max()) {
+            let world_aabb = player_aabb.transform(&pos_after_move);
+            for model_id in fmc::get_models(world_aabb.min(), world_aabb.max()) {
                 let Some(config) = self.models.get(&model_id) else {
                     continue;
                 };
@@ -566,6 +571,7 @@ pub struct CollisionConfig {
     collider: Collider,
     friction: Friction,
     climbable: bool,
+    is_model: bool,
 }
 
 impl CollisionConfig {

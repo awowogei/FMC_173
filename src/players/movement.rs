@@ -1,6 +1,6 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
-    models::{Model, ModelId, ModelMap, ModelSystems, Models},
+    models::{Model, ModelId, ModelMap, ModelSystems},
     networking::Server,
     physics::Friction,
     physics::{Collider, shapes::Aabb},
@@ -28,7 +28,6 @@ impl Plugin for MovementPlugin {
 pub enum MovementPluginPacket<'a> {
     Setup {
         blocks: Vec<CollisionConfig>,
-        models: Vec<CollisionConfig>,
     },
     /// Changes the player's velocity
     Velocity(Vec3),
@@ -43,6 +42,7 @@ pub struct CollisionConfig {
     collider: Vec3Collider,
     friction: Vec3Friction,
     climbable: bool,
+    is_model: bool,
 }
 
 #[derive(Serialize)]
@@ -113,7 +113,7 @@ impl From<&Friction> for Vec3Friction {
     }
 }
 
-fn send_setup(net: Res<Server>, models: Res<Models>, new_players: Query<Entity, Added<Player>>) {
+fn send_setup(net: Res<Server>, new_players: Query<Entity, Added<Player>>) {
     for player_entity in new_players.iter() {
         // TODO: These can be pre-computed
         let block_collision_configs = Blocks::get()
@@ -123,23 +123,7 @@ fn send_setup(net: Res<Server>, models: Res<Models>, new_players: Query<Entity, 
                 collider: Vec3Collider::from(&config.collider),
                 friction: Vec3Friction::from(&config.friction),
                 climbable: &config.name == "ladder",
-            })
-            .collect();
-
-        let model_collision_configs = models
-            .configs()
-            .iter()
-            .map(|config| CollisionConfig {
-                collider: Vec3Collider::from(&config.collider),
-                friction: Vec3Friction::Surface {
-                    top: 0.99,
-                    bottom: 0.0,
-                    left: 0.0,
-                    right: 0.0,
-                    front: 0.0,
-                    back: 0.0,
-                },
-                climbable: false,
+                is_model: config.model.is_some(),
             })
             .collect();
 
@@ -149,7 +133,6 @@ fn send_setup(net: Res<Server>, models: Res<Models>, new_players: Query<Entity, 
                 plugin: "movement".to_owned(),
                 data: bincode::serialize(&MovementPluginPacket::Setup {
                     blocks: block_collision_configs,
-                    models: model_collision_configs,
                 })
                 .unwrap(),
             },
@@ -188,6 +171,7 @@ fn send_block_models(
                                 collider: Vec3Collider::from(&block_config.collider),
                                 friction: Vec3Friction::from(&block_config.friction),
                                 climbable: false,
+                                is_model: true,
                             },
                         );
                     }
@@ -220,7 +204,7 @@ fn send_block_models(
         let from = Blocks::get().get_config(&block_update.from.0);
         let to = Blocks::get().get_config(&block_update.to.0);
 
-        if !from.model.is_some() && to.model.is_some() {
+        if from.model.is_none() && to.model.is_none() {
             continue;
         }
 
