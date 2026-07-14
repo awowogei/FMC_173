@@ -18,6 +18,7 @@
         }
     ],
     "tools": ["axe"],
+    "particle_texture": "blocks/oak_planks.png",
     "drop": {
         "requires_tool": false,
         "item": "oak_stairs"
