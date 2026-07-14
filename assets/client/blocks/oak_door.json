@@ -9,7 +9,25 @@
         "item": "oak_door"
     },
     "placement": {
-        "rotatable": true
+        "rotatable": true,
+        "rotation_transform": {
+            "translation": [
+                -0.4375,
+                0,
+                -0.4375
+            ],
+            "rotation": [
+                0,
+                0,
+                0,
+                1
+            ],
+            "scale": [
+                1,
+                1,
+                1
+            ]
+        }
     },
     "particle_texture": "blocks/oak_planks.png",
     "sound": {
