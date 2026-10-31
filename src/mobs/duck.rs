@@ -154,7 +154,7 @@ fn wander(
         let mut potential_blocks = Vec::new();
 
         let blocks = Blocks::get();
-        let water_id = blocks.get_id("surface_water");
+        let water_id = blocks.get_id("ocean_top");
 
         let start = BlockPosition::from(transform.translation());
         potential_blocks.push((start, u32::MIN, 0));

@@ -23,6 +23,6 @@
         "floor": true,
         "ceiling": true,
         "sides": true,
-        "rotatable": true
+        "rotatable": false
     }
 }

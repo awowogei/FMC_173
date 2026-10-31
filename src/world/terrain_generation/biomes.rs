@@ -41,8 +41,8 @@ impl Biomes {
             top_layer_block: "grass".to_owned(),
             mid_layer_block: "dirt".to_owned(),
             bottom_layer_block: "stone".to_owned(),
-            surface_liquid: "surface_water".to_owned(),
-            sub_surface_liquid: "subsurface_water".to_owned(),
+            surface_liquid: "ocean_top".to_owned(),
+            sub_surface_liquid: "ocean_bottom".to_owned(),
             air: "air".to_owned(),
             sand: "sand".to_owned(),
             blueprints: vec![

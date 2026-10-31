@@ -2,16 +2,11 @@ import os
 import json
 import shutil
 import copy
+import itertools
 
-#base_name = input("Name of block, e.g. 'water': ")
-#material_name = input("Material name, e.g. 'water': ")
-#friction = input("Friction, 'x,y,z': ").split(',')
-#light_attenuation = input("Light attenuation (integer):")
-#flowing_texture_name = input("Flowing texture name: ")
-#still_texture_name = input("Still texture name: ")
 base_name = "water"
 material_name = "water"
-friction = [0.8, 0.5, 0.8]
+friction = [5.0, 5.0, 5.0]
 flowing_texture_name = "flowing_water.png"
 still_texture_name = "still_water.png"
 fog = {
@@ -27,9 +22,9 @@ fog = {
     "stop": 100
 }
 
-def make_block(name, top_quad, top_texture, rotate_texture, is_rotatable, cull_top=False, light_attenuation=0):
+def make_block(name, top_quad, top_texture, rotate_texture, cull_top=False, light_attenuation=0):
     quads = []
-    
+
     #top
     quads.append({
         "vertices": copy.deepcopy(top_quad),
@@ -108,127 +103,105 @@ def make_block(name, top_quad, top_texture, rotate_texture, is_rotatable, cull_t
     }
 
 
-
-def make_blocks(name, decrement, top_texture, rotate_texture, count, is_rotatable=True):
-    blocks = []
-    
-    # 0  2
-    # | /|
-    # |/ |
-    # 1  3
-    # this is the indexing of the decrement list
-    top_quad = [
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [1.0, 1.0, 0.0],
-        [1.0, 1.0, 1.0],
+def flat_quad(height):
+    return [
+        [0.0, height, 0.0],
+        [0.0, height, 1.0],
+        [1.0, height, 0.0],
+        [1.0, height, 1.0],
     ]
 
-    for i in range(0, 4):
-        top_quad[i][1] = round(top_quad[i][1] - decrement[i] * 0.1, 1)
 
-    for block_suffix in reversed(range(1, count + 1)):
-        for i in range(0, 4):
-            top_quad[i][1] = round(top_quad[i][1] - 0.1, 1)
+def rotate(corners):
+    (back_right, back_left, front_right, front_left) = corners
+    return (front_right, back_right, front_left, back_left)
 
-        block = make_block(name + "_" + str(block_suffix), top_quad, top_texture, rotate_texture, is_rotatable)
-        blocks.append(block)
+
+def slopes(corners):
+    (back_right, back_left, front_right, front_left) = corners
+    left_right = (front_right + back_right) - (front_left + back_left)
+    back_front = (front_left + front_right) - (back_left + back_right)
+    return (left_right, back_front)
+
+
+def canonical(corners):
+    rotations = [corners]
+    for _ in range(3):
+        rotations.append(rotate(rotations[-1]))
+
+    def flows_forwards(corners):
+        (left_right, back_front) = slopes(corners)
+        return (left_right >= 0 and back_front <= 0, -back_front, corners)
+
+    return max(rotations, key=flows_forwards)
+
+
+def make_shapes():
+    blocks = []
+
+    for corners in itertools.product(range(1, 11), repeat=4):
+        if canonical(corners) != corners:
+            continue
+
+        # The surface of a block may drop at most 5 levels
+        if max(corners) - min(corners) > 5:
+            continue
+
+        (back_right, back_left, front_right, front_left) = corners
+
+        name = base_name + "_" + "_".join(str(level) for level in corners)
+
+        top_quad = [
+            [0.0, round(back_left * 0.1, 1), 0.0],
+            [0.0, round(front_left * 0.1, 1), 1.0],
+            [1.0, round(back_right * 0.1, 1), 0.0],
+            [1.0, round(front_right * 0.1, 1), 1.0],
+        ]
+
+        # The still texture for surfaces without a slope, the flowing texture
+        # for the rest.
+        (left_right_slope, back_front_slope) = slopes(corners)
+        if left_right_slope == 0 and back_front_slope == 0:
+            (top_texture, rotate_texture) = (still_texture_name, False)
+        elif left_right_slope == 0 or back_front_slope == 0:
+            (top_texture, rotate_texture) = (flowing_texture_name, False)
+        else:
+            (top_texture, rotate_texture) = (flowing_texture_name, True)
+
+        # The flat full block is the only shape that can sit directly below other
+        # water, so its top face can be culled.
+        cull_top = corners == (10, 10, 10, 10)
+
+        blocks.append(make_block(name, top_quad, top_texture, rotate_texture, cull_top))
+
+    for level in range(1, 10):
+        name = base_name + "_" + "_".join(str(level) for _ in range(4)) + "_straight"
+        top_quad = flat_quad(round(level * 0.1, 1))
+        blocks.append(make_block(name, top_quad, flowing_texture_name, False))
 
     return blocks
+
 
 blocks = []
 
 blocks.append(make_block(
-    name="subsurface_" + base_name,
-    top_quad=[
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [1.0, 1.0, 0.0],
-        [1.0, 1.0, 1.0]
-    ],
+    name="ocean_bottom",
+    top_quad=flat_quad(1.0),
     top_texture=still_texture_name,
     rotate_texture=False,
-    is_rotatable=False,
     cull_top=True,
     light_attenuation=2,
 ))
 
 blocks.append(make_block(
-    name="surface_" + base_name,
-    top_quad=[
-        [0.0, 0.9, 0.0],
-        [0.0, 0.9, 1.0],
-        [1.0, 0.9, 0.0],
-        [1.0, 0.9, 1.0]
-    ],
+    name="ocean_top",
+    top_quad=flat_quad(0.9),
     top_texture=still_texture_name,
     rotate_texture=False,
-    is_rotatable=False,
     cull_top=False
 ))
 
-blocks.append(make_block(
-    name="still_" + base_name + "_10",
-    top_quad=[
-        [0.0, 1.0, 0.0],
-        [0.0, 1.0, 1.0],
-        [1.0, 1.0, 0.0],
-        [1.0, 1.0, 1.0]
-    ],
-    top_texture=still_texture_name,
-    rotate_texture=False,
-    is_rotatable=False,
-    cull_top=True,
-))
-
-blocks.extend(make_blocks(
-    name="still_" + base_name,
-    decrement=[0,0,0,0],
-    top_texture=still_texture_name,
-    rotate_texture=False,
-    count=9,
-    is_rotatable=False
-))
-
-blocks.extend(make_blocks(
-    name="tilted_" + base_name,
-    decrement=[1,0,0,1],
-    top_texture=still_texture_name,
-    rotate_texture=False,
-    count=8
-))
-
-blocks.extend(make_blocks(
-    name="straight_" + base_name,
-    decrement=[0,1,0,1],
-    top_texture=flowing_texture_name,
-    rotate_texture=False,
-    count=8,
-))
-
-blocks.extend(make_blocks(
-    name="diagonal_" + base_name,
-    decrement=[1,2,0,1],
-    top_texture=flowing_texture_name,
-    rotate_texture=True,
-    count=7,
-))
-
-blocks.extend(make_blocks(
-    name="diagonal_" + base_name + "_corner_up",
-    decrement=[1,1,0,1],
-    top_texture=flowing_texture_name,
-    rotate_texture=True,
-    count=8
-))
-
-blocks.extend(make_blocks(
-    name="diagonal_" + base_name + "_corner_down",
-    decrement=[0,1,0,0],
-    top_texture=flowing_texture_name,
-    rotate_texture=True,
-    count=8
-))
+blocks.extend(make_shapes())
 
 shutil.rmtree(base_name, ignore_errors=True)
 os.mkdir(base_name)
@@ -243,12 +216,13 @@ parent = {
         "floor": True,
         "ceiling": True,
         "sides": True,
-        "rotatable": True,
+        "rotatable": False,
     },
 }
 path = base_name + "/parent.json"
 with open(path, "w") as file:
     json.dump(parent, file, indent=4)
+    file.write("\n")
 
 for block in blocks:
     path = base_name + "/" + block["name"] + ".json"

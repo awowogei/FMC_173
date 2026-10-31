@@ -1,0 +1,163 @@
+{
+    "parent": "water/parent.json",
+    "light_attenuation": 0,
+    "name": "water_8_4_3_4",
+    "quads": [
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.4,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.4,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.8,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.3,
+                    1.0
+                ]
+            ],
+            "texture": "flowing_water.png",
+            "rotate_texture": true
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "still_water.png",
+            "cull_face": "bottom"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.3,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.8,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "flowing_water.png",
+            "cull_face": "right"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.4,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.4,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "flowing_water.png",
+            "cull_face": "left"
+        },
+        {
+            "vertices": [
+                [
+                    0.0,
+                    0.4,
+                    1.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.3,
+                    1.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    1.0
+                ]
+            ],
+            "texture": "flowing_water.png",
+            "cull_face": "front"
+        },
+        {
+            "vertices": [
+                [
+                    1.0,
+                    0.8,
+                    0.0
+                ],
+                [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.4,
+                    0.0
+                ],
+                [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            ],
+            "texture": "flowing_water.png",
+            "cull_face": "back"
+        }
+    ]
+}

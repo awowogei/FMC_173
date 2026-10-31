@@ -1,0 +1,9 @@
+{
+    "parent": "default_non_solid_block.json",
+    "type": "cube",
+    "name": "water_0_0_0_0",
+    "material": "transparent",
+    "cull": false,
+    "light_attenuation": 0,
+    "replaceable": true
+}
