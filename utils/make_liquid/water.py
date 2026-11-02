@@ -143,6 +143,11 @@ def make_shapes():
         if canonical(corners) != corners:
             continue
 
+        # Never occurs naturally from spreading, only present as the last stage
+        # of decay, doesn't look good.
+        if corners == (1, 1, 1, 1):
+            continue
+
         # The surface of a block may drop at most 5 levels
         if max(corners) - min(corners) > 5:
             continue
@@ -174,7 +179,7 @@ def make_shapes():
 
         blocks.append(make_block(name, top_quad, top_texture, rotate_texture, cull_top))
 
-    for level in range(1, 10):
+    for level in range(2, 10):
         name = base_name + "_" + "_".join(str(level) for _ in range(4)) + "_straight"
         top_quad = flat_quad(round(level * 0.1, 1))
         blocks.append(make_block(name, top_quad, flowing_texture_name, False))

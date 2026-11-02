@@ -229,6 +229,15 @@ impl WaterBlock {
 
             self.corners[corner as usize] = [max.saturating_sub(4).max(1); 4];
         }
+
+        // [1;4] corners are often leftover from decay and is unwanted from spreading, removed for
+        // aesthetics so it doesn't leave disconnected puddles on the ground.
+        if Corner::all()
+            .into_iter()
+            .all(|corner| self.get_corner(corner) <= 1)
+        {
+            *self = WaterBlock::EMPTY;
+        }
     }
 }
 
