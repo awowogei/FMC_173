@@ -22,6 +22,24 @@ fog = {
     "stop": 100
 }
 
+level_to_pixels = {
+    1: 1,
+    2: 2,
+    3: 4,
+    4: 6,
+    5: 8,
+    6: 10,
+    7: 12,
+    8: 14,
+    9: 15,
+    10: 16,
+}
+
+
+def level_height(level):
+    return level_to_pixels[level] / 16
+
+
 def make_block(name, top_quad, top_texture, rotate_texture, cull_top=False, light_attenuation=0):
     quads = []
 
@@ -157,10 +175,10 @@ def make_shapes():
         name = base_name + "_" + "_".join(str(level) for level in corners)
 
         top_quad = [
-            [0.0, round(back_left * 0.1, 1), 0.0],
-            [0.0, round(front_left * 0.1, 1), 1.0],
-            [1.0, round(back_right * 0.1, 1), 0.0],
-            [1.0, round(front_right * 0.1, 1), 1.0],
+            [0.0, level_height(back_left), 0.0],
+            [0.0, level_height(front_left), 1.0],
+            [1.0, level_height(back_right), 0.0],
+            [1.0, level_height(front_right), 1.0],
         ]
 
         # The still texture for surfaces without a slope, the flowing texture
@@ -181,7 +199,7 @@ def make_shapes():
 
     for level in range(2, 10):
         name = base_name + "_" + "_".join(str(level) for _ in range(4)) + "_straight"
-        top_quad = flat_quad(round(level * 0.1, 1))
+        top_quad = flat_quad(level_height(level))
         blocks.append(make_block(name, top_quad, flowing_texture_name, False))
 
     return blocks
@@ -200,7 +218,7 @@ blocks.append(make_block(
 
 blocks.append(make_block(
     name="ocean_top",
-    top_quad=flat_quad(0.9),
+    top_quad=flat_quad(level_height(8)),
     top_texture=still_texture_name,
     rotate_texture=False,
     cull_top=False
