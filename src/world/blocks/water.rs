@@ -515,12 +515,18 @@ impl Neighbourhood {
                 }
 
                 if water_block == WaterBlock::EMPTY && offset != IVec3::ZERO {
-                    if (offset.x != 0 && offset.z != 0) || level < 2 || !was_water {
+                    if (offset.x != 0 && offset.z != 0) // Don't spread to diagonals
+                        || level < 2 // Level is too low to spread
+                        || !was_water // Don't spread if another block spread into it
+                        // Don't spread if the block below is water or non-solid
+                        || self[IVec3::NEG_Y].is_some()
+                    {
                         continue;
                     }
 
                     // This is set to drop as much as possible so that the far end will drop low
-                    // on the first tick.
+                    // on the first tick. Then when the event is processed it will read its real
+                    // level from its surroundings
                     updated[offset].as_mut().unwrap().level = level.saturating_sub(4).max(1);
                 }
 
@@ -529,11 +535,14 @@ impl Neighbourhood {
             }
         }
 
-        if level > 0 && updated[IVec3::NEG_Y] == Some(WaterBlock::EMPTY) {
+        // Spread water down if the block below is non-solid or some other water shape
+        if let Some(below) = updated[IVec3::NEG_Y]
+            && level > 0
+        {
             updated[IVec3::NEG_Y] = Some(WaterBlock {
                 level: MAX_LEVEL,
                 corners: [[MAX_HEIGHT; 4]; 4],
-                source: false,
+                source: below.source,
             });
         }
 
@@ -549,9 +558,6 @@ impl Neighbourhood {
                         continue;
                     }
 
-                    let directly_above =
-                        self[offset + IVec3::Y].is_some_and(|above| above != WaterBlock::EMPTY);
-
                     for corner in Corner::all() {
                         let mut water_above = false;
                         let mut outside_neighbourhood = false;
@@ -566,9 +572,8 @@ impl Neighbourhood {
                         }
 
                         let levels = &mut water_block.corners[corner as usize];
-                        let close = MAX_HEIGHT - levels.iter().max().unwrap() <= 3;
 
-                        if water_above && (directly_above || close) {
+                        if water_above {
                             *levels = [MAX_HEIGHT; 4];
                         } else if !outside_neighbourhood {
                             *levels = levels.map(|level| level.min(8));
@@ -592,18 +597,17 @@ struct Queue {
     cache: HashMap<BlockPosition, Neighbourhood>,
     // Only positions that are changed into non-water or are included in this hashset during the
     // previous update will be processed this tick. This is to avoid water spreading diagonally.
-    ticked: HashSet<BlockPosition>,
+    tickable: HashSet<BlockPosition>,
 }
 
 impl Queue {
     fn insert(&mut self, position: BlockPosition, neighbourhood: Neighbourhood) {
-        let is_water = |water_block: Option<WaterBlock>| {
-            water_block.is_some_and(|block| block != WaterBlock::EMPTY)
-        };
-
-        if is_water(neighbourhood.previous)
-            && is_water(neighbourhood.center())
-            && !self.ticked.contains(&position)
+        // We only recompute the levels of positions that were queued the last tick, or if it's a
+        // block that has been placed/removed
+        if neighbourhood
+            .center()
+            .is_some_and(|block| block != WaterBlock::EMPTY && !block.source)
+            && !self.tickable.contains(&position)
         {
             return;
         }
@@ -614,24 +618,23 @@ impl Queue {
             .unwrap_or(WaterBlock::EMPTY)
             .level as usize;
 
-        if self.cache.insert(position, neighbourhood).is_some() {
-            return;
+        if self.cache.insert(position, neighbourhood).is_none() {
+            // Avoids multiple entries in bins
+            self.bins[level].push(position);
         }
-
-        self.bins[level].push(position);
     }
 
     fn drain(&mut self) -> impl Iterator<Item = (BlockPosition, Neighbourhood)> {
-        self.ticked.clear();
+        self.tickable.clear();
 
         self.bins
             .iter_mut()
             .rev()
             .flat_map(|bin| bin.drain(..))
             .map(|position| {
-                self.ticked.insert(position);
+                self.tickable.insert(position);
                 for face in BlockFace::iter() {
-                    self.ticked.insert(position + face.offset());
+                    self.tickable.insert(position + face.offset());
                 }
 
                 (position, self.cache.remove(&position).unwrap())
@@ -659,14 +662,17 @@ fn update_water(
         // immediately fix this. The pending_updates will be drained and we will receive a new
         // ChangedBlockEvent that replaces this one, but has matching corners.
         for corner in Corner::all() {
-            let surrounding = corner
+            let Some(max) = corner
                 .neighbourhood()
-                .map(|offset| neighbourhood[offset].map_or(0, |water_block| water_block.level));
-
-            let water_above = corner.neighbourhood().into_iter().any(|offset| {
-                neighbourhood[offset + IVec3::Y].is_some_and(|above| above != WaterBlock::EMPTY)
-            });
-            let close = MAX_HEIGHT - surrounding.iter().max().unwrap() <= 3;
+                .into_iter()
+                .filter_map(|offset| {
+                    let neighbour = neighbourhood[offset]?;
+                    Some(neighbour.get_corner(corner.translate(offset)))
+                })
+                .max()
+            else {
+                continue;
+            };
 
             for offset in corner.neighbourhood() {
                 let Some(water_block) = neighbourhood[offset] else {
@@ -677,27 +683,13 @@ fn update_water(
                     continue;
                 }
 
-                let directly_above = neighbourhood[offset + IVec3::Y]
-                    .is_some_and(|above| above != WaterBlock::EMPTY);
-
-                let levels = if water_above && (directly_above || close) {
-                    [MAX_HEIGHT; 4]
-                } else {
-                    surrounding
-                };
-
                 let corner = corner.translate(offset);
-                let mut fixed = water_block;
-                fixed.corners[corner as usize] = levels;
-
-                if fixed.key() == water_block.key() {
-                    continue;
+                if water_block.get_corner(corner) < max {
+                    pending_updates
+                        .entry(event.position + offset)
+                        .or_insert(water_block)
+                        .corners[corner as usize] = [max; 4];
                 }
-
-                pending_updates
-                    .entry(event.position + offset)
-                    .or_insert(water_block)
-                    .corners[corner as usize] = levels;
             }
         }
 
