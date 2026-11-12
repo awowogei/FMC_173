@@ -95,6 +95,14 @@ fn bounding_coords(points: &[Vertex]) -> ([f32; 3], [f32; 3]) {
     (min, max)
 }
 
+fn srgb_to_linear(c: f32) -> f32 {
+    if c <= 0.04045 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
 fn align_to_multiple_of_four(n: &mut u32) {
     *n = (*n + 3) & !3;
 }
@@ -118,7 +126,11 @@ fn convert(image: &Rgba32FImage) -> gltf::binary::Glb {
         for pos in vertices.iter() {
             triangle_vertices.push(Vertex {
                 position: [pos[0] + x, pos[1] + y, pos[2] + z],
-                color: [color[0], color[1], color[2]],
+                color: [
+                    srgb_to_linear(color[0]),
+                    srgb_to_linear(color[1]),
+                    srgb_to_linear(color[2]),
+                ],
             })
         }
     };
