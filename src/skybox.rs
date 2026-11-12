@@ -22,7 +22,7 @@ const MIDNIGHT: f32 = DAY_LENGTH * 0.75;
 const NOON: f32 = DAY_LENGTH * 0.25;
 
 /// The current time of day, 0s = dawn, 600s = dusk
-#[derive(DerefMut, Deref, Resource)]
+#[derive(Resource)]
 pub struct Clock {
     time: Duration,
 }

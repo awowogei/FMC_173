@@ -5,7 +5,7 @@ mod crafting_table;
 mod door;
 mod furnace;
 mod torch;
-mod water;
+pub mod water;
 mod wheat;
 
 /// Adds systems for all blocks that are dynamic in some way
