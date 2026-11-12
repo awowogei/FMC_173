@@ -71,11 +71,8 @@ impl WorldProperties {
             .prepare("INSERT OR REPLACE INTO storage (name, data) VALUES (?,?)")
             .unwrap();
 
-        stmt.execute(rusqlite::params![
-            "world_properties",
-            serde_json::to_string(self).unwrap()
-        ])
-        .unwrap();
+        stmt.execute(("world_properties", serde_json::to_string(self).unwrap()))
+            .unwrap();
     }
 }
 

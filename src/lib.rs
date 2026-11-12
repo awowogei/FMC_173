@@ -1,5 +1,6 @@
 mod assets;
 pub mod chat;
+pub mod cli;
 pub mod explosions;
 pub mod items;
 pub mod mobs;
@@ -23,8 +24,8 @@ impl PluginGroup for DefaultPlugins {
         group
             // This must run first so all the expected assets are present
             .add(assets::ExtractBundledAssetsPlugin)
-            .add_group(fmc::DefaultPlugins)
             .add(settings::SettingsPlugin)
+            .add_group(fmc::DefaultPlugins)
             .add(items::ItemPlugin)
             .add(players::PlayerPlugin)
             .add(world::WorldPlugin)

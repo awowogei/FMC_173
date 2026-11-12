@@ -198,7 +198,7 @@ impl PlayerSave {
             .unwrap();
         let json = serde_json::to_string(self).unwrap();
 
-        stmt.execute(rusqlite::params![username, json]).unwrap();
+        stmt.execute((username, json)).unwrap();
     }
 
     fn load(username: &str, database: &Database) -> Option<Self> {

@@ -1,4 +1,4 @@
-use fmc::{database::Database, prelude::*, terminal::Cli};
+use fmc::{database::Database, prelude::*};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -6,30 +6,34 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use crate::players::GameMode;
+use crate::{cli::Cli, players::GameMode};
 
 pub struct SettingsPlugin;
 impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
         let mut settings = if let Some(world_path) = Cli::world_path() {
-            Settings::load_from_database(world_path).unwrap_or(Settings::default())
+            let database = Database::new(world_path.to_owned());
+            let settings = Settings::load_from_database(&database).unwrap_or(Settings::default());
+            app.insert_resource(database);
+            settings
         } else {
             let mut settings = Settings::load_from_file();
 
             let database_path = if let Some(name) = &settings.world_name {
                 name.clone()
             } else {
-                Database::DEFAULT_PATH.to_owned()
+                "./world.sqlite".to_owned()
             };
+
+            let database = Database::new(database_path);
 
             // Overwrite settings from the file that can't be changed after the world
             // has been created.
-            if let Some(db_settings) = Settings::load_from_database(&database_path) {
+            if let Some(db_settings) = Settings::load_from_database(&database) {
                 settings.seed = db_settings.seed;
             }
 
-            // Different database path so we override the database
-            app.insert_resource(Database::new(database_path));
+            app.insert_resource(database);
 
             settings
         };
@@ -77,10 +81,8 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn load_from_database(path: &str) -> Option<Self> {
-        let Ok(connection) = rusqlite::Connection::open(path) else {
-            return None;
-        };
+    fn load_from_database(database: &Database) -> Option<Self> {
+        let connection = database.get_read_connection();
 
         let Ok(settings_json) = connection.query_row(
             "SELECT data FROM storage WHERE name='settings'",
@@ -195,7 +197,7 @@ impl Settings {
         connection
             .execute(
                 "INSERT OR REPLACE INTO storage (name, data) VALUES (?,?)",
-                rusqlite::params!["settings", serde_json::to_string(self).unwrap()],
+                ("settings", serde_json::to_string(self).unwrap()),
             )
             .unwrap();
     }

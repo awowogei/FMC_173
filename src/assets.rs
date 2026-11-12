@@ -1,4 +1,6 @@
-use fmc::{prelude::*, terminal::Cli};
+use fmc::prelude::*;
+
+use crate::cli::Cli;
 
 /// Extracts the bundled assets to the "assets" directory
 pub struct ExtractBundledAssetsPlugin;
