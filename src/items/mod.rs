@@ -7,6 +7,7 @@ mod dropped_items;
 
 pub mod arrows;
 pub mod bread;
+pub mod bucket;
 pub mod hoes;
 pub mod seeds;
 pub mod spawn_crates;
@@ -21,6 +22,7 @@ impl Plugin for ItemPlugin {
             .add_plugins(crafting::CraftingPlugin)
             .add_plugins(hoes::HoePlugin)
             .add_plugins(bread::BreadPlugin)
+            .add_plugins(bucket::BucketPlugin)
             .add_plugins(spawn_crates::CratePlugin)
             .add_plugins(arrows::ArrowPlugin)
             .add_plugins(seeds::SeedPlugin);
@@ -46,6 +48,9 @@ impl ItemRegistry {
     }
 }
 
+// TODO: This is such an ugly way to do it, same with how blocks do interactions too.
+// Surely there must be a better way...
+//
 /// List of player entities that have used the item during the last tick.
 ///
 /// Attach this to an entity and register the entity as a handler in the [ItemRegistry].

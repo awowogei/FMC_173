@@ -1,0 +1,6 @@
+{
+    "name": "Water Bucket",
+    "image": "water_bucket.png",
+    "equip_model": "water_bucket",
+    "stack_size": 1
+}

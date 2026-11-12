@@ -1,0 +1,12 @@
+[
+    {
+        "collection_name": "crafting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["iron_ingot", 1], ["", 0],         ["iron_ingot", 1]],
+            [["", 0],           ["iron_ingot", 1], ["", 0]]
+        ],
+        "output_item": "bucket",
+        "output_amount": 1
+    }
+]

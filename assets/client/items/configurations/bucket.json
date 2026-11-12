@@ -1,0 +1,6 @@
+{
+    "name": "Bucket",
+    "image": "bucket.png",
+    "equip_model": "bucket",
+    "stack_size": 1
+}
