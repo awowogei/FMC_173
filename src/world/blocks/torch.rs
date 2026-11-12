@@ -28,32 +28,25 @@ fn fragile_break(
     mut rng: Local<Rng>,
 ) {
     for changed_block in changed_blocks.read() {
-        for (block, block_rotation) in [
-            (changed_block.right, Some(BlockRotation::Right)),
-            (changed_block.left, Some(BlockRotation::Left)),
-            (changed_block.front, Some(BlockRotation::Front)),
-            (changed_block.back, Some(BlockRotation::Back)),
-            (changed_block.top, None),
+        for (offset, block_rotation) in [
+            (IVec3::X, Some(BlockRotation::Right)),
+            (IVec3::NEG_X, Some(BlockRotation::Left)),
+            (IVec3::Z, Some(BlockRotation::Front)),
+            (IVec3::NEG_Z, Some(BlockRotation::Back)),
+            (IVec3::Y, None),
         ] {
-            let Some(block) = block else {
+            let Some((block_id, block_state)) = changed_block[offset] else {
                 continue;
             };
 
             let torch_id = Blocks::get().get_id("torch");
-            if block.0 != torch_id {
+            if block_id != torch_id {
                 continue;
             }
 
-            if let Some(block_state) = block.1 {
+            if let Some(block_state) = block_state {
                 if block_rotation == block_state.rotation() {
-                    let position = changed_block.position
-                        + match block_rotation {
-                            Some(BlockRotation::Front) => IVec3::Z,
-                            Some(BlockRotation::Right) => IVec3::X,
-                            Some(BlockRotation::Back) => IVec3::NEG_Z,
-                            Some(BlockRotation::Left) => IVec3::NEG_X,
-                            None => IVec3::Y,
-                        };
+                    let position = changed_block.position + offset;
                     block_updates.write(BlockUpdate::Replace {
                         position,
                         block_id: Blocks::get().get_id("air"),
