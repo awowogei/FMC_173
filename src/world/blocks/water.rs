@@ -7,6 +7,26 @@ use fmc::{
     world::{BlockUpdate, ChangedBlockEvent},
 };
 
+// NOTE: The way this has been done seems to be the wrong approach. I've ended up just embracing the
+// complexity in order to make a semi-functioning system, but another approach is sorely needed. The
+// complexity comes from trying to compress what is 10k(10 levels for each corner) different water
+// states into 1k states. Each state needs its own block, so the compression is done to reduce the
+// amount block assets needed for each liquid that is added. It all seems like a very poor decision,
+// 1k is already too much to tolerate and it just makes it ugly, terrible compromise.
+//
+// Possible solutions:
+// 1. Hardcode a "liquid" type of block in the client.
+//    The water level alone is enough to determine the correct shape so you'd only need a single
+//    block asset.
+//    Feels like a breach of the client/server distinction, but if the other two options are the
+//    competition this seems like the best way out.
+//
+// 2. Letting blocks define their vertices/uvs/textures etc through expressions in the assets. Which
+//    would mean some sort of expression evaluator and the performance implications of using
+//    something like that in the mesher. All too complicated to get into for now.
+//
+// 3. Meshing done through wasm?
+
 pub(super) struct WaterPlugin;
 impl Plugin for WaterPlugin {
     fn build(&self, app: &mut App) {
@@ -52,15 +72,6 @@ impl Corner {
         corner
     }
 
-    fn adjacent_neighbours(self) -> [IVec3; 2] {
-        match self {
-            Self::Left => [IVec3::NEG_X, IVec3::Z],
-            Self::Right => [IVec3::X, IVec3::Z],
-            Self::FarRight => [IVec3::X, IVec3::NEG_Z],
-            Self::FarLeft => [IVec3::NEG_X, IVec3::NEG_Z],
-        }
-    }
-
     fn neighbourhood(self) -> [IVec3; 4] {
         match self {
             Self::Left => [IVec3::ZERO, IVec3::NEG_X, IVec3::Z, IVec3::new(-1, 0, 1)],
@@ -84,20 +95,6 @@ impl Corner {
         }
     }
 
-    fn diagonal(self) -> Corner {
-        match self {
-            Self::Left => Self::FarRight,
-            Self::Right => Self::FarLeft,
-            Self::FarRight => Self::Left,
-            Self::FarLeft => Self::Right,
-        }
-    }
-
-    fn distance(self, other: Corner) -> u8 {
-        let steps = (self as u8).abs_diff(other as u8);
-        steps.min(4 - steps)
-    }
-
     fn all() -> [Corner; 4] {
         [
             Corner::Left,
@@ -111,8 +108,60 @@ impl Corner {
 #[derive(Clone, Copy, Debug)]
 struct WaterBlock {
     level: u8,
-    corners: [[u8; 4]; 4],
+    corners: [CornerLevels; 4],
     source: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CornerLevels([Option<u8>; 4]);
+
+impl CornerLevels {
+    const EMPTY: Self = Self([Some(0); 4]);
+
+    fn new(level: u8) -> Self {
+        Self([Some(level); 4])
+    }
+
+    fn levels(&self) -> impl Iterator<Item = u8> {
+        self.0.into_iter().flatten()
+    }
+
+    fn height(&self) -> u8 {
+        self.levels().max().unwrap_or(0)
+    }
+
+    fn is_isolated(&self, corner: Corner) -> bool {
+        let enclosed = corner
+            .adjacent_corners()
+            .into_iter()
+            .all(|adjacent| self[adjacent].is_none());
+
+        let height = self.height();
+        let connected = self
+            .levels()
+            .filter(|&level| level != 0 && level + 2 >= height)
+            .count();
+
+        !enclosed && connected == 1
+    }
+
+    fn cap(&mut self, max: u8) {
+        self.0 = self.0.map(|level| level.map(|level| level.min(max)));
+    }
+}
+
+impl Index<Corner> for CornerLevels {
+    type Output = Option<u8>;
+
+    fn index(&self, corner: Corner) -> &Self::Output {
+        &self.0[corner as usize]
+    }
+}
+
+impl IndexMut<Corner> for CornerLevels {
+    fn index_mut(&mut self, corner: Corner) -> &mut Self::Output {
+        &mut self.0[corner as usize]
+    }
 }
 
 impl PartialEq for WaterBlock {
@@ -126,7 +175,7 @@ impl Eq for WaterBlock {}
 impl WaterBlock {
     const EMPTY: WaterBlock = WaterBlock {
         level: 0,
-        corners: [[0; 4]; 4],
+        corners: [CornerLevels::EMPTY; 4],
         source: false,
     };
 
@@ -185,19 +234,16 @@ impl WaterBlock {
     }
 
     fn is_flat(&self) -> bool {
-        let heights = self.corners.map(|levels| *levels.iter().max().unwrap());
+        let heights = self.corners.map(|levels| levels.height());
         heights.iter().all(|&height| height == heights[0])
     }
 
     fn get_corner(&self, corner: Corner) -> u8 {
         let levels = self.corners[corner as usize];
-        let max = *levels.iter().max().unwrap();
-        let sum: u8 = levels.iter().sum();
-
-        if sum == max && !self.is_flat() {
-            max.saturating_sub(4)
+        if levels.is_isolated(corner) && !self.is_flat() {
+            levels.height().saturating_sub(4)
         } else {
-            max
+            levels.height()
         }
     }
 
@@ -205,12 +251,12 @@ impl WaterBlock {
         let still = Corner::all().map(|corner| self.get_corner(corner) * 2);
 
         let low = self.corners.map(|corner| {
-            let max = *corner.iter().max().unwrap();
+            let max = corner.height();
             // This determines if the levels around a corner would have an average of less than
             // max-0.5. It's guaranteed if there are two levels that have a level lower than the max.
             corner
-                .iter()
-                .filter(|&&level| level < max && level != 0)
+                .levels()
+                .filter(|&level| level < max && level != 0)
                 .count()
                 > 2
         });
@@ -239,11 +285,11 @@ impl WaterBlock {
                 .max()
                 .unwrap();
             let current = self.get_corner(corner);
-            if current != 0 && max.saturating_sub(current) <= 4 {
+            if current != 0 && max.saturating_sub(current) <= MAX_DROP {
                 continue;
             }
 
-            self.corners[corner as usize] = [max.saturating_sub(4).max(1); 4];
+            self.corners[corner as usize] = CornerLevels::new(max.saturating_sub(MAX_DROP).max(1));
         }
 
         // [1;4] corners are often leftover from decay and is unwanted from spreading, removed for
@@ -259,6 +305,7 @@ impl WaterBlock {
 
 const MAX_HEIGHT: u8 = 10;
 const MAX_LEVEL: u8 = 8;
+const MAX_DROP: u8 = 5;
 
 fn setup(mut commands: Commands, blocks: Res<Blocks>) {
     // Since generated water is "source" water, we'd have to store block state for each generated water
@@ -366,13 +413,19 @@ impl Water {
             ((state & Self::LEVEL_MASK) >> Self::LEVEL_SHIFT) as u8
         };
 
+        // The corners must map back to the same key. Flat water that is flowing has odd keys in
+        // two corners, in order to make the corner map back to an odd key we give one of the
+        // elements the max value and the other three the value 1 below. If the key is even, it
+        // will just be the max in all four fields.
+        let mut corners = key.map(|key| CornerLevels::new(key / 2));
+        for corner in Corner::all() {
+            // The highest value must be set in the corner that actually owns it.
+            corners[corner as usize][corner] = Some(key[corner as usize].div_ceil(2));
+        }
+
         Some(WaterBlock {
             level,
-            // The corners must map back to the same key. Flat water that is flowing has odd keys in
-            // two corners, in order to make the corner map back to an odd key we give one of the
-            // elements the max value and the other three the value 1 below. If the key is even, it
-            // will just be the max in all four fields.
-            corners: key.map(|key| [key.div_ceil(2), key / 2, key / 2, key / 2]),
+            corners,
             source,
         })
     }
@@ -385,7 +438,7 @@ impl Water {
     pub fn source_block(&self) -> (BlockId, Option<BlockState>) {
         self.to_block(&WaterBlock {
             level: MAX_LEVEL,
-            corners: [[MAX_LEVEL; 4]; 4],
+            corners: [CornerLevels::new(MAX_LEVEL); 4],
             source: true,
         })
         .unwrap()
@@ -517,6 +570,11 @@ impl Neighbourhood {
             } else {
                 [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z]
                     .into_iter()
+                    .filter(|&offset| {
+                        // Can only be taken from if either this block has a solid beneath it or the
+                        // adjacent one does.
+                        self[IVec3::NEG_Y].is_none() || self[offset + IVec3::NEG_Y].is_none()
+                    })
                     .filter_map(|offset| self[offset])
                     .map(|water_block| water_block.level)
                     .max()
@@ -533,7 +591,7 @@ impl Neighbourhood {
         if level >= 2 && was_water && self[IVec3::NEG_Y].is_none() {
             for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z] {
                 if let Some(water_block) = updated[offset].as_mut()
-                    && *water_block == WaterBlock::EMPTY
+                    && water_block.level < level - 1
                 {
                     water_block.level = level - 1;
                 }
@@ -553,7 +611,7 @@ impl Neighbourhood {
         for x in -1..=1 {
             for z in -1..=1 {
                 let position = IVec3::new(x, 0, z);
-                let level = self[position].map_or(0, |water_block| water_block.level);
+                let level = self[position].map(|water_block| water_block.level);
 
                 for corner in Corner::all() {
                     for offset in corner.neighbourhood() {
@@ -570,8 +628,7 @@ impl Neighbourhood {
                             continue;
                         }
 
-                        water_block.corners[corner.translate(offset) as usize][corner as usize] =
-                            level;
+                        water_block.corners[corner.translate(offset) as usize][corner] = level;
                     }
                 }
             }
@@ -601,123 +658,14 @@ impl Neighbourhood {
                         let levels = &mut self[offset].as_mut().unwrap().corners[corner as usize];
 
                         if water_above {
-                            *levels = [MAX_HEIGHT; 4];
+                            *levels = CornerLevels::new(MAX_HEIGHT);
                         } else if !outside_neighbourhood {
-                            *levels = levels.map(|level| level.min(8));
+                            levels.cap(8);
                         }
                     }
                 }
             }
         }
-    }
-
-    fn update(&self) -> Self {
-        let mut updated = *self;
-
-        if let Some(center) = updated[IVec3::ZERO].as_mut() {
-            if !center.source {
-                center.level = if self[IVec3::Y].is_some_and(|above| above != WaterBlock::EMPTY) {
-                    MAX_LEVEL
-                } else {
-                    [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z]
-                        .into_iter()
-                        .filter_map(|offset| self[offset])
-                        .map(|water_block| water_block.level)
-                        .max()
-                        .unwrap_or(0)
-                        .saturating_sub(1)
-                };
-            }
-        }
-
-        let level = updated.center().map_or(0, |center| center.level);
-        let was_water = self
-            .center()
-            .is_some_and(|center| center != WaterBlock::EMPTY);
-
-        for corner in Corner::all() {
-            let surrounding = corner
-                .neighbourhood()
-                .map(|offset| updated[offset].map_or(0, |water_block| water_block.level));
-
-            for offset in corner.neighbourhood() {
-                let Some(water_block) = self[offset] else {
-                    continue;
-                };
-
-                if offset == IVec3::ZERO && level == 0 {
-                    continue;
-                }
-
-                if water_block == WaterBlock::EMPTY && offset != IVec3::ZERO {
-                    if (offset.x != 0 && offset.z != 0) // Don't spread to diagonals
-                        || level < 2 // Level is too low to spread
-                        || !was_water // Don't spread if another block spread into it
-                        // Don't spread if the block below is water or non-solid
-                        || self[IVec3::NEG_Y].is_some()
-                    {
-                        continue;
-                    }
-
-                    updated[offset].as_mut().unwrap().level = level - 1;
-                }
-
-                let corner = corner.translate(offset);
-                updated[offset].as_mut().unwrap().corners[corner as usize] = surrounding;
-            }
-        }
-
-        // Spread water down if the block below is non-solid or some other water shape
-        if let Some(below) = updated[IVec3::NEG_Y]
-            && level > 0
-        {
-            updated[IVec3::NEG_Y] = Some(WaterBlock {
-                level: MAX_LEVEL,
-                corners: [[MAX_HEIGHT; 4]; 4],
-                source: below.source,
-            });
-        }
-
-        for y in [0, -1] {
-            for x in -1..=1 {
-                for z in -1..=1 {
-                    let offset = IVec3::new(x, y, z);
-                    let Some(mut water_block) = updated[offset] else {
-                        continue;
-                    };
-
-                    if water_block == WaterBlock::EMPTY {
-                        continue;
-                    }
-
-                    for corner in Corner::all() {
-                        let mut water_above = false;
-                        let mut outside_neighbourhood = false;
-
-                        for corner_offset in corner.neighbourhood() {
-                            let above = offset + corner_offset + IVec3::Y;
-                            if above.abs().max_element() > 1 {
-                                outside_neighbourhood = true;
-                            } else if self[above].is_some_and(|above| above != WaterBlock::EMPTY) {
-                                water_above = true;
-                            }
-                        }
-
-                        let levels = &mut water_block.corners[corner as usize];
-
-                        if water_above {
-                            *levels = [MAX_HEIGHT; 4];
-                        } else if !outside_neighbourhood {
-                            *levels = levels.map(|level| level.min(8));
-                        }
-                    }
-
-                    updated[offset] = Some(water_block);
-                }
-            }
-        }
-
-        updated
     }
 }
 
@@ -790,40 +738,40 @@ fn update_water(
             continue;
         };
 
-        // If water spreads into water from another source the corners will most likely no match. We
+        // If water spreads into water from another source the corners will most likely not match. We
         // immediately fix this. The pending_updates will be drained and we will receive a new
         // ChangedBlockEvent that replaces this one, but has matching corners.
-        // for corner in Corner::all() {
-        //     let Some(max) = corner
-        //         .neighbourhood()
-        //         .into_iter()
-        //         .filter_map(|offset| {
-        //             let neighbour = neighbourhood[offset]?;
-        //             Some(neighbour.get_corner(corner.translate(offset)))
-        //         })
-        //         .max()
-        //     else {
-        //         continue;
-        //     };
-        //
-        //     for offset in corner.neighbourhood() {
-        //         let Some(water_block) = neighbourhood[offset] else {
-        //             continue;
-        //         };
-        //
-        //         if water_block == WaterBlock::EMPTY {
-        //             continue;
-        //         }
-        //
-        //         let corner = corner.translate(offset);
-        //         if water_block.get_corner(corner) < max {
-        //             pending_updates
-        //                 .entry(event.position + offset)
-        //                 .or_insert(water_block)
-        //                 .corners[corner as usize] = [max; 4];
-        //         }
-        //     }
-        // }
+        for corner in Corner::all() {
+            let Some(max) = corner
+                .neighbourhood()
+                .into_iter()
+                .filter_map(|offset| {
+                    let neighbour = neighbourhood[offset]?;
+                    Some(neighbour.get_corner(corner.translate(offset)))
+                })
+                .max()
+            else {
+                continue;
+            };
+
+            for offset in corner.neighbourhood() {
+                let Some(water_block) = neighbourhood[offset] else {
+                    continue;
+                };
+
+                if water_block == WaterBlock::EMPTY {
+                    continue;
+                }
+
+                let corner = corner.translate(offset);
+                if water_block.get_corner(corner) < max {
+                    pending_updates
+                        .entry(event.position + offset)
+                        .or_insert(water_block)
+                        .corners[corner as usize] = CornerLevels::new(max);
+                }
+            }
+        }
 
         queue.insert(event.position, neighbourhood);
     }
@@ -843,7 +791,10 @@ fn update_water(
                             continue;
                         };
 
-                        if neighbourhood[offset] != Some(water_block) {
+                        let mut balanced = water_block;
+                        balanced.balance();
+
+                        if neighbourhood[offset] != Some(balanced) {
                             pending_updates.insert(position + offset, water_block);
                         }
                     }
