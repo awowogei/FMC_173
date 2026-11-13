@@ -562,6 +562,10 @@ impl Neighbourhood {
     fn update_levels(&self) -> Self {
         let mut updated = *self;
 
+        let was_water = self
+            .center()
+            .is_some_and(|center| center != WaterBlock::EMPTY);
+
         if let Some(center) = updated[IVec3::ZERO].as_mut()
             && !center.source
         {
@@ -581,12 +585,20 @@ impl Neighbourhood {
                     .unwrap_or(0)
                     .saturating_sub(1)
             };
+
+            let adjacent_sources = [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z]
+                .into_iter()
+                .filter(|&offset| self[offset].is_some_and(|water_block| water_block.source))
+                .count();
+            let supported = self[IVec3::NEG_Y].is_none_or(|below| below.source);
+
+            if was_water && adjacent_sources >= 2 && supported {
+                center.source = true;
+                center.level = MAX_LEVEL;
+            }
         }
 
         let level = updated.center().map_or(0, |center| center.level);
-        let was_water = self
-            .center()
-            .is_some_and(|center| center != WaterBlock::EMPTY);
 
         if level >= 2 && was_water && self[IVec3::NEG_Y].is_none() {
             for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z] {
