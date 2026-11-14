@@ -1849,7 +1849,7 @@ dependencies = [
 [[package]]
 name = "fmc"
 version = "0.0.5"
-source = "git+https://github.com/formulaicgame/fmc#ba24b8167508d92e005761020185a5dccccca37d"
+source = "git+https://github.com/formulaicgame/fmc#230e0b81237e6a06ed6d274e9c4b1b01ab12b82e"
 dependencies = [
  "bevy",
  "bincode",
@@ -1907,7 +1907,7 @@ dependencies = [
 [[package]]
 name = "fmc_protocol"
 version = "0.1.3"
-source = "git+https://github.com/formulaicgame/fmc#ba24b8167508d92e005761020185a5dccccca37d"
+source = "git+https://github.com/formulaicgame/fmc#230e0b81237e6a06ed6d274e9c4b1b01ab12b82e"
 dependencies = [
  "bevy",
  "fmc_protocol_derive",
@@ -1917,7 +1917,7 @@ dependencies = [
 [[package]]
 name = "fmc_protocol_derive"
 version = "0.1.0"
-source = "git+https://github.com/formulaicgame/fmc#ba24b8167508d92e005761020185a5dccccca37d"
+source = "git+https://github.com/formulaicgame/fmc#230e0b81237e6a06ed6d274e9c4b1b01ab12b82e"
 dependencies = [
  "quote",
  "syn 1.0.109",

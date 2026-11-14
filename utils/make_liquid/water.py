@@ -3,10 +3,12 @@ import json
 import shutil
 import copy
 import itertools
+import math
 
 base_name = "water"
 material_name = "water"
-friction = [5.0, 5.0, 5.0]
+friction = [5.0, 7.5, 5.0]
+force = 6.0
 flowing_texture_name = "flowing_water.png"
 still_texture_name = "still_water.png"
 fog = {
@@ -40,7 +42,7 @@ def level_height(level):
     return level_to_pixels[level] / 16
 
 
-def make_block(name, top_quad, top_texture, rotate_texture, cull_top=False, light_attenuation=0):
+def make_block(name, top_quad, top_texture, rotate_texture, cull_top=False, light_attenuation=0, force=None):
     quads = []
 
     #top
@@ -113,12 +115,29 @@ def make_block(name, top_quad, top_texture, rotate_texture, cull_top=False, ligh
         "cull_face": "back"
     })
 
-    return {
+    block = {
         "parent": base_name + "/parent.json",
         "light_attenuation": light_attenuation,
         "name": name,
         "quads": quads
     }
+
+    if force is not None:
+        block["force"] = force
+
+    return block
+
+
+def slope_force(corners):
+    (left_right, back_front) = slopes(corners)
+    length = math.hypot(left_right, back_front)
+    if length == 0:
+        return None
+    return [
+        round(-left_right / length * force, 4),
+        0.0,
+        round(-back_front / length * force, 4),
+    ]
 
 
 def flat_quad(height):
@@ -195,12 +214,12 @@ def make_shapes():
         # water, so its top face can be culled.
         cull_top = corners == (10, 10, 10, 10)
 
-        blocks.append(make_block(name, top_quad, top_texture, rotate_texture, cull_top))
+        blocks.append(make_block(name, top_quad, top_texture, rotate_texture, cull_top, force=slope_force(corners)))
 
     for level in range(2, 10):
         name = base_name + "_" + "_".join(str(level) for _ in range(4)) + "_straight"
         top_quad = flat_quad(level_height(level))
-        blocks.append(make_block(name, top_quad, flowing_texture_name, False))
+        blocks.append(make_block(name, top_quad, flowing_texture_name, False, force=[0.0, 0.0, force]))
 
     return blocks
 

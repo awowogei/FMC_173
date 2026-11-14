@@ -54,7 +54,7 @@ fn spawn_model(
     models: Res<Models>,
     items: Res<Items>,
     mut dropped_items: Query<
-        (Entity, &DroppedItem, Option<&Physics>, &mut Transform),
+        (Entity, &DroppedItem, Option<&mut Physics>, &mut Transform),
         Added<DroppedItem>,
     >,
     mut rng: Local<Rng>,
@@ -92,7 +92,11 @@ fn spawn_model(
             Collider::Single(aabb),
         ));
 
-        if maybe_physics.is_none() {
+        const MASS: f64 = 0.5;
+
+        if let Some(mut physics) = maybe_physics {
+            physics.mass = MASS;
+        } else {
             let random = rng.next_f32() * std::f32::consts::TAU;
             let velocity_x = random.sin() as f64 * 3.0;
             let velocity_z = random.cos() as f64 * 3.0;
@@ -100,6 +104,7 @@ fn spawn_model(
 
             entity_commands.insert(Physics {
                 velocity: DVec3::new(velocity_x, velocity_y, velocity_z),
+                mass: MASS,
                 ..default()
             });
         }

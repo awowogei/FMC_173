@@ -159,5 +159,10 @@
             "texture": "flowing_water.png",
             "cull_face": "back"
         }
+    ],
+    "force": [
+        -3.087,
+        0.0,
+        5.145
     ]
 }
