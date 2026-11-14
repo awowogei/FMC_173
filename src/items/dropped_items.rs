@@ -82,7 +82,6 @@ fn spawn_model(
         let mut animation_player = AnimationPlayer::default();
         let animation_index = model_config.animations.get("dropped").cloned();
         animation_player.set_idle_animation(animation_index);
-        animation_player.set_move_animation(animation_index);
 
         let mut entity_commands = commands.entity(entity);
 
