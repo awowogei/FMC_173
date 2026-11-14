@@ -12,6 +12,12 @@ use crate::{
 pub const CHAT_FONT_SIZE: f32 = 8.0;
 pub const CHAT_TEXT_COLOR: &str = "#ffffff";
 
+const HELP_TEXT: &[&str] = &[
+    "------------------------- Help --------------------------",
+    "/time <noon|night|dawn|dusk|0-1200> - Set the time of day",
+    "/gamemode <0|1> - survival(0) or creative(1)",
+];
+
 pub struct ChatPlugin;
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
@@ -37,27 +43,45 @@ fn handle_chat_messages(
 
         // TODO: All commands are handled here until a proper system is figured out
         if chat_message.text.starts_with("/") {
-            if let Some(time) = chat_message.text.strip_prefix("/time ") {
-                match time {
+            let send_message = |text: &str| {
+                net.send_one(
+                    chat_message.player_entity,
+                    messages::InterfaceTextUpdate {
+                        interface_path: "chat/history".to_owned(),
+                        index: i32::MAX,
+                        text: text.to_owned(),
+                        font_size: CHAT_FONT_SIZE,
+                        color: CHAT_TEXT_COLOR.to_owned(),
+                    },
+                );
+            };
+
+            if chat_message.text.trim() == "/help" {
+                for line in HELP_TEXT {
+                    send_message(line);
+                }
+            } else if let Some(time) = chat_message.text.strip_prefix("/time ") {
+                match time.trim() {
                     "noon" => clock.set_noon(),
-                    "midnight" => clock.set_midnight(),
-                    "sunrise" => clock.set_sunrise(),
-                    "sunset" => clock.set_sunset(),
-                    custom_time => {
-                        if let Some(time) = custom_time
-                            .strip_prefix("set ")
-                            .and_then(|time| str::parse::<f32>(time).ok())
-                        {
-                            clock.set_time(time);
-                        }
-                    }
+                    "night" => clock.set_midnight(),
+                    "dawn" => clock.set_sunrise(),
+                    "dusk" => clock.set_sunset(),
+                    custom_time => match custom_time.parse::<u32>() {
+                        Ok(time) if time <= 1200 => clock.set_time(time as f32),
+                        Ok(_) => send_message("Time must be between 0 and 1200"),
+                        Err(_) => send_message(
+                            "Invalid time, use noon, night, dawn, dusk or a number from 0 to 1200",
+                        ),
+                    },
                 }
             } else if let Some(mode) = chat_message.text.strip_prefix("/gamemode ") {
-                match mode {
+                match mode.trim() {
                     "0" => *game_mode = GameMode::Survival,
                     "1" => *game_mode = GameMode::Creative,
-                    _ => (),
+                    _ => send_message("Invalid game mode, use 0 or 1"),
                 }
+            } else {
+                send_message("Invalid command, type /help for a list of commands");
             }
         } else {
             net.broadcast(messages::InterfaceTextUpdate {
