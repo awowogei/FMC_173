@@ -1,6 +1,11 @@
 use std::time::Duration;
 
-use fmc::{networking::Server, prelude::*, protocol::messages};
+use fmc::{
+    commands::{AddCommand, Command, CommandSystems},
+    networking::Server,
+    prelude::*,
+    protocol::messages,
+};
 
 /// Handles the day/night cycle
 pub struct SkyPlugin;
@@ -9,7 +14,14 @@ impl Plugin for SkyPlugin {
         app.insert_resource(Clock {
             time: Duration::from_secs_f32(100.0),
         })
-        .add_systems(Update, day_night_cycle);
+        .add_command::<TimeCommand>()
+        .add_systems(
+            Update,
+            (
+                day_night_cycle,
+                handle_time_command.after(CommandSystems::Dispatch),
+            ),
+        );
     }
 }
 
@@ -67,4 +79,51 @@ fn day_night_cycle(time: Res<Time>, net: Res<Server>, mut clock: ResMut<Clock>) 
     };
 
     net.broadcast(message);
+}
+
+#[derive(Message)]
+enum TimeCommand {
+    Noon,
+    Night,
+    Dawn,
+    Dusk,
+    Custom(f32),
+}
+
+impl Command for TimeCommand {
+    const NAME: &'static str = "time";
+    const USAGE: &'static str = "time <noon|night|dawn|dusk|0-1200> - Set the time of day";
+
+    fn parse(_source: Entity, args: &[&str]) -> Result<Self, String> {
+        let [time] = args else {
+            return Err(Self::USAGE.to_owned());
+        };
+
+        match *time {
+            "noon" => Ok(Self::Noon),
+            "night" => Ok(Self::Night),
+            "dawn" => Ok(Self::Dawn),
+            "dusk" => Ok(Self::Dusk),
+            custom_time => match custom_time.parse::<u32>() {
+                Ok(time) if time <= 1200 => Ok(Self::Custom(time as f32)),
+                Ok(_) => Err("Time must be between 0 and 1200".to_owned()),
+                Err(_) => Err(
+                    "Invalid time, use noon, night, dawn, dusk or a number from 0 to 1200"
+                        .to_owned(),
+                ),
+            },
+        }
+    }
+}
+
+fn handle_time_command(mut clock: ResMut<Clock>, mut time_commands: MessageReader<TimeCommand>) {
+    for time_command in time_commands.read() {
+        match time_command {
+            TimeCommand::Noon => clock.set_noon(),
+            TimeCommand::Night => clock.set_midnight(),
+            TimeCommand::Dawn => clock.set_sunrise(),
+            TimeCommand::Dusk => clock.set_sunset(),
+            TimeCommand::Custom(time) => clock.set_time(*time),
+        }
+    }
 }

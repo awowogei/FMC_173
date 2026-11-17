@@ -1,16 +1,19 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
+    commands::{AddCommand, Command, CommandError, CommandSystems},
     database::Database,
     ecs::query::QueryData,
     interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::ItemStack,
-    models::{AnimationPlayer, Model, Models, Observers},
     math::{DQuat, DVec3},
+    models::{AnimationPlayer, Model, Models},
     networking::{NetworkEvent, NetworkMessage, Server},
+    permissions::{Permission, Permissions, Roles},
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     protocol::messages,
+    visibility::Observers,
     world::{
         WorldMap,
         chunk::{Chunk, ChunkPosition},
@@ -39,6 +42,7 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<RespawnEvent>()
+            .add_command::<GameModeCommand>()
             .add_plugins(inventory_interface::InventoryInterfacePlugin)
             .add_plugins(health::HealthPlugin)
             .add_plugins(hand::HandPlugin)
@@ -47,6 +51,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (
                     on_gamemode_update,
+                    handle_gamemode_command.after(CommandSystems::Dispatch),
                     handle_gui_settings,
                     (add_players, ApplyDeferred).chain(),
                     respawn_players,
@@ -71,6 +76,94 @@ pub enum GameMode {
     Survival,
     Creative,
     Spectator,
+}
+
+#[derive(Message)]
+struct GameModeCommand {
+    source: Entity,
+    game_mode: GameMode,
+    target: Option<String>,
+}
+
+impl Command for GameModeCommand {
+    const NAME: &'static str = "gamemode";
+    const USAGE: &'static str = "gamemode <0|1> [player] - survival(0) or creative(1)";
+
+    fn parse(source: Entity, args: &[&str]) -> Result<Self, String> {
+        let (mode, target) = match args {
+            [mode] => (*mode, None),
+            [mode, target] => (*mode, Some(target.to_string())),
+            _ => return Err(Self::USAGE.to_owned()),
+        };
+
+        let game_mode = match mode {
+            "0" => GameMode::Survival,
+            "1" => GameMode::Creative,
+            _ => return Err("Invalid game mode, use 0 or 1".to_owned()),
+        };
+
+        Ok(Self {
+            source,
+            game_mode,
+            target,
+        })
+    }
+}
+
+fn handle_gamemode_command(
+    permissions: Res<Permissions>,
+    roles_query: Query<&Roles>,
+    mut player_query: Query<(Entity, &Player, &mut GameMode)>,
+    mut game_mode_commands: MessageReader<GameModeCommand>,
+    mut errors: MessageWriter<CommandError>,
+) {
+    for game_mode_command in game_mode_commands.read() {
+        let source = game_mode_command.source;
+        let mut target_entity = source;
+
+        if let Some(target) = &game_mode_command.target {
+            let mut allowed = false;
+            if let Ok(roles) = roles_query.get(source) {
+                allowed = permissions.has_permission(roles, &Permission::ADMIN);
+            }
+
+            if !allowed {
+                errors.write(CommandError {
+                    source,
+                    text: "You are not allowed to change the game mode of other players".to_owned(),
+                });
+                continue;
+            }
+
+            let mut found = None;
+            for (entity, player, _) in player_query.iter() {
+                if &player.username == target {
+                    found = Some(entity);
+                    break;
+                }
+            }
+
+            let Some(entity) = found else {
+                errors.write(CommandError {
+                    source,
+                    text: format!("There is no player named '{target}'"),
+                });
+                continue;
+            };
+
+            target_entity = entity;
+        }
+
+        let Ok((_, _, mut game_mode)) = player_query.get_mut(target_entity) else {
+            errors.write(CommandError {
+                source,
+                text: "Only players have a game mode".to_owned(),
+            });
+            continue;
+        };
+
+        *game_mode = game_mode_command.game_mode;
+    }
 }
 
 #[derive(Component, Serialize, Deserialize, Deref, DerefMut, Clone)]

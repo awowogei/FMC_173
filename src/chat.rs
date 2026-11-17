@@ -1,34 +1,48 @@
-use crate::{
-    fmc::{
-        networking::{NetworkEvent, NetworkMessage, Server},
-        players::Player,
-        prelude::*,
-        protocol::messages,
+use crate::fmc::{
+    commands::{
+        AddCommand, Command, CommandError, CommandEvent, CommandRegistry, CommandSystems,
+        RegisteredCommand,
     },
-    players::GameMode,
-    skybox::Clock,
+    networking::{NetworkEvent, NetworkMessage, Server},
+    permissions::{Permissions, Roles},
+    players::Player,
+    prelude::*,
+    protocol::messages,
 };
 
 pub const CHAT_FONT_SIZE: f32 = 8.0;
 pub const CHAT_TEXT_COLOR: &str = "#ffffff";
 
-const HELP_TEXT: &[&str] = &[
-    "------------------------- Help --------------------------",
-    "/time <noon|night|dawn|dusk|0-1200> - Set the time of day",
-    "/gamemode <0|1> - survival(0) or creative(1)",
-];
-
 pub struct ChatPlugin;
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (handle_chat_messages, send_connection_messages));
+        app.add_command::<HelpCommand>().add_systems(
+            Update,
+            (
+                handle_chat_messages.before(CommandSystems::Dispatch),
+                (handle_help_command, send_command_errors).after(CommandSystems::Dispatch),
+                send_connection_messages,
+            ),
+        );
+    }
+}
+
+fn chat_line(text: impl Into<String>) -> messages::InterfaceTextUpdate {
+    messages::InterfaceTextUpdate {
+        interface_path: "chat/history".to_owned(),
+        index: i32::MAX,
+        text: text.into(),
+        font_size: CHAT_FONT_SIZE,
+        color: CHAT_TEXT_COLOR.to_owned(),
     }
 }
 
 fn handle_chat_messages(
     net: Res<Server>,
-    mut player_query: Query<(&Player, &mut GameMode)>,
-    mut clock: ResMut<Clock>,
+    command_registry: Res<CommandRegistry>,
+    permissions: Res<Permissions>,
+    player_query: Query<(&Player, Option<&Roles>)>,
+    mut command_events: MessageWriter<CommandEvent>,
     mut chat_message_query: MessageReader<NetworkMessage<messages::InterfaceTextInput>>,
 ) {
     for chat_message in chat_message_query.read() {
@@ -36,61 +50,113 @@ fn handle_chat_messages(
             continue;
         }
 
-        let Ok((player, mut game_mode)) = player_query.get_mut(chat_message.player_entity) else {
+        let Ok((player, roles)) = player_query.get(chat_message.player_entity) else {
             // TODO: Should probably disconnect
             continue;
         };
 
-        // TODO: All commands are handled here until a proper system is figured out
-        if chat_message.text.starts_with("/") {
-            let send_message = |text: &str| {
-                net.send_one(
-                    chat_message.player_entity,
-                    messages::InterfaceTextUpdate {
-                        interface_path: "chat/history".to_owned(),
-                        index: i32::MAX,
-                        text: text.to_owned(),
-                        font_size: CHAT_FONT_SIZE,
-                        color: CHAT_TEXT_COLOR.to_owned(),
-                    },
-                );
-            };
+        let Some(command_text) = chat_message.text.strip_prefix("/") else {
+            net.broadcast(chat_line(format!(
+                "[{}] {}",
+                &player.username, &chat_message.text
+            )));
+            continue;
+        };
 
-            if chat_message.text.trim() == "/help" {
-                for line in HELP_TEXT {
-                    send_message(line);
-                }
-            } else if let Some(time) = chat_message.text.strip_prefix("/time ") {
-                match time.trim() {
-                    "noon" => clock.set_noon(),
-                    "night" => clock.set_midnight(),
-                    "dawn" => clock.set_sunrise(),
-                    "dusk" => clock.set_sunset(),
-                    custom_time => match custom_time.parse::<u32>() {
-                        Ok(time) if time <= 1200 => clock.set_time(time as f32),
-                        Ok(_) => send_message("Time must be between 0 and 1200"),
-                        Err(_) => send_message(
-                            "Invalid time, use noon, night, dawn, dusk or a number from 0 to 1200",
-                        ),
-                    },
-                }
-            } else if let Some(mode) = chat_message.text.strip_prefix("/gamemode ") {
-                match mode.trim() {
-                    "0" => *game_mode = GameMode::Survival,
-                    "1" => *game_mode = GameMode::Creative,
-                    _ => send_message("Invalid game mode, use 0 or 1"),
-                }
-            } else {
-                send_message("Invalid command, type /help for a list of commands");
+        let mut allowed = false;
+        if let Some(name) = command_text.split_whitespace().next() {
+            if let Some(command) = command_registry.get(name) {
+                allowed = is_allowed(command, roles, &permissions);
             }
-        } else {
-            net.broadcast(messages::InterfaceTextUpdate {
-                interface_path: "chat/history".to_owned(),
-                index: i32::MAX,
-                text: format!("[{}] {}", &player.username, &chat_message.text),
-                font_size: CHAT_FONT_SIZE,
-                color: CHAT_TEXT_COLOR.to_owned(),
-            });
+        }
+
+        if !allowed {
+            net.send_one(
+                chat_message.player_entity,
+                chat_line("Invalid command, type /help for a list of commands"),
+            );
+            continue;
+        }
+
+        command_events.write(CommandEvent {
+            source: chat_message.player_entity,
+            text: command_text.to_owned(),
+        });
+    }
+}
+
+fn is_allowed(
+    command: &RegisteredCommand,
+    roles: Option<&Roles>,
+    permissions: &Permissions,
+) -> bool {
+    let Some(permission) = command.permission else {
+        return true;
+    };
+
+    let Some(roles) = roles else {
+        return false;
+    };
+
+    permissions.has_permission(roles, &permission)
+}
+
+#[derive(Message)]
+struct HelpCommand {
+    source: Entity,
+    prefix: String,
+}
+
+impl Command for HelpCommand {
+    const NAME: &'static str = "help";
+    const USAGE: &'static str = "help [command] - List the available commands and their usage";
+
+    fn parse(source: Entity, args: &[&str]) -> Result<Self, String> {
+        let prefix = match args {
+            [] => String::new(),
+            [prefix] => prefix.to_string(),
+            _ => return Err(Self::USAGE.to_owned()),
+        };
+
+        Ok(Self { source, prefix })
+    }
+}
+
+fn handle_help_command(
+    net: Res<Server>,
+    command_registry: Res<CommandRegistry>,
+    permissions: Res<Permissions>,
+    player_query: Query<Option<&Roles>, With<Player>>,
+    mut help_commands: MessageReader<HelpCommand>,
+) {
+    for help_command in help_commands.read() {
+        let Ok(roles) = player_query.get(help_command.source) else {
+            continue;
+        };
+
+        net.send_one(
+            help_command.source,
+            chat_line("------------------------- Help --------------------------"),
+        );
+        for command in command_registry.query(&help_command.prefix) {
+            if is_allowed(command, roles, &permissions) {
+                net.send_one(
+                    help_command.source,
+                    chat_line(format!("/{}", command.usage)),
+                );
+            }
+        }
+    }
+}
+
+fn send_command_errors(
+    net: Res<Server>,
+    player_query: Query<(), With<Player>>,
+    mut errors: MessageReader<CommandError>,
+) {
+    for error in errors.read() {
+        if player_query.contains(error.source) {
+            net.send_one(error.source, chat_line(error.text.as_str()));
         }
     }
 }
