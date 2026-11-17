@@ -1,10 +1,10 @@
 use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 
 use fmc::{
-    bevy::math::{DQuat, DVec2, DVec3},
     blocks::{BlockPosition, Blocks},
     items::{DropTable, ItemStack, Items},
     models::{Model, ModelColor, ModelVisibility, Models},
+    math::{DQuat, DVec2, DVec3},
     networking::Server,
     physics::{Collider, Physics},
     players::{Camera, Player},

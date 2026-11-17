@@ -1,8 +1,8 @@
 use std::collections::{BinaryHeap, HashMap};
 
 use fmc::{
-    bevy::math::{DVec2, DVec3},
     blocks::{BlockPosition, Blocks},
+    math::{DVec2, DVec3},
     prelude::*,
     world::WorldMap,
 };

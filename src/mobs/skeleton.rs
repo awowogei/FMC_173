@@ -1,10 +1,10 @@
 use std::collections::HashSet;
 
 use fmc::{
-    bevy::math::{DQuat, DVec3},
     blocks::{BlockPosition, Blocks},
     items::{DropTable, Items},
     models::{AnimationPlayer, BoneAttachment, Model, ModelVisibility, Models},
+    math::{DQuat, DVec3},
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,

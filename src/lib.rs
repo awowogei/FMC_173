@@ -16,10 +16,10 @@ pub mod prelude {
     pub use fmc::prelude::*;
 }
 
-use fmc::bevy::app::{PluginGroup, PluginGroupBuilder};
+use fmc::app::{PluginGroup, PluginGroupBuilder};
 pub struct DefaultPlugins;
 impl PluginGroup for DefaultPlugins {
-    fn build(self) -> fmc::bevy::app::PluginGroupBuilder {
+    fn build(self) -> PluginGroupBuilder {
         let group = PluginGroupBuilder::start::<Self>();
         group
             // This must run first so all the expected assets are present

@@ -1,7 +1,7 @@
 use fmc::{
-    bevy::math::DVec3,
     interfaces::{InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     items::ItemStack,
+    math::DVec3,
     networking::{NetworkMessage, Server},
     physics::Physics,
     players::Player,

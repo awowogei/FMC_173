@@ -1,6 +1,6 @@
 use fmc::{
-    bevy::math::DQuat,
     blocks::{BlockData, Blocks},
+    math::DQuat,
     prelude::*,
 };
 

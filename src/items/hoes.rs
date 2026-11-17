@@ -1,7 +1,7 @@
 use fmc::{
-    bevy::math::DVec3,
     blocks::{BlockId, Blocks},
     items::{Item, ItemStack, Items},
+    math::DVec3,
     networking::Server,
     players::{Player, Target, Targets},
     prelude::*,

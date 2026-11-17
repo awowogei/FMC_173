@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    bevy::math::DVec3,
     blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
     items::{ItemStack, Items},
     models::{AnimationPlayer, Model, ModelConfig, ModelMap, ModelVisibility, Models},
+    math::DVec3,
     networking::{NetworkMessage, Server},
     particle_effects::ParticleEffects,
     physics::{Collider, GRAVITY, shapes::Aabb},

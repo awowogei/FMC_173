@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use fmc::{
-    bevy::math::DVec3,
     blocks::{BlockPosition, Blocks},
     items::Items,
+    math::DVec3,
     models::{AnimationPlayer, Model, Models},
     physics::{Buoyancy, Collider, Physics},
     players::Player,

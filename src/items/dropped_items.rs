@@ -1,7 +1,7 @@
 use fmc::{
-    bevy::math::DVec3,
     items::{ItemStack, Items},
     models::{AnimationPlayer, Model, ModelMap, Models},
+    math::DVec3,
     networking::Server,
     physics::{Collider, Physics},
     players::Camera,

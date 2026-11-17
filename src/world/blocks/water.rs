@@ -1,7 +1,9 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::{Index, IndexMut},
+};
 
 use fmc::{
-    bevy::platform::collections::{HashMap, HashSet},
     blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
     prelude::*,
     world::{BlockUpdate, ChangedBlockEvent},
