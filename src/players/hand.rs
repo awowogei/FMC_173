@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use fmc::{
     blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
     items::{ItemStack, Items},
-    models::{AnimationPlayer, Model, ModelConfig, ModelMap, ModelVisibility, Models},
     math::DVec3,
+    models::{AnimationPlayer, Model, ModelConfig, Models},
     networking::{NetworkMessage, Server},
     particle_effects::ParticleEffects,
     physics::{Collider, GRAVITY, shapes::Aabb},
@@ -12,6 +12,7 @@ use fmc::{
     prelude::*,
     protocol::messages,
     random::Rng,
+    visibility::{EntityMap, Visibility},
     world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 
@@ -78,7 +79,7 @@ fn handle_left_clicks(
         (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
         With<Player>,
     >,
-    mut hittable_entities: Query<(&mut HandHits, Option<&ModelVisibility>)>,
+    mut hittable_entities: Query<(&mut HandHits, Option<&Visibility>)>,
     mut mining_events: ResMut<MiningEvents>,
     mut click_tracker: Local<HashSet<Entity>>,
 ) {
@@ -136,7 +137,7 @@ fn handle_left_clicks(
                 }
                 Target::Entity { entity, .. } if first_click => {
                     if let Ok((mut hits, maybe_visibility)) = hittable_entities.get_mut(*entity) {
-                        if matches!(maybe_visibility, Some(ModelVisibility::Hidden)) {
+                        if matches!(maybe_visibility, Some(Visibility::Hidden)) {
                             continue;
                         }
                         hits.push(click.player_entity);
@@ -174,7 +175,7 @@ fn break_blocks(
     chunk_subscriptions: Res<ChunkSubscriptions>,
     inventory_query: Query<&Inventory, With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
-    mut breaking_model_query: Query<(&mut Model, &mut ModelVisibility), With<BreakingBlockMarker>>,
+    mut breaking_model_query: Query<(&mut Model, &mut Visibility), With<BreakingBlockMarker>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
     mut mining_events: ResMut<MiningEvents>,
     mut being_broken: Local<HashMap<BlockPosition, BreakingBlock>>,
@@ -272,7 +273,7 @@ fn break_blocks(
             } else if prev_progress < 0.2 && progress > 0.2 {
                 Some("blocks/breaking_2.png".to_owned())
             } else if prev_progress < 0.1 && progress > 0.1 {
-                *visibility = ModelVisibility::Visible;
+                *visibility = Visibility::Visible;
                 None
             } else {
                 None
@@ -359,7 +360,7 @@ fn break_blocks(
                     .spawn((
                         model,
                         // The model shouldn't show until some progress has been made
-                        ModelVisibility::Hidden,
+                        Visibility::Hidden,
                         BreakingBlockMarker,
                     ))
                     .id();
@@ -383,7 +384,7 @@ fn break_blocks(
                             .with_scale(DVec3::splat(1.001))
                             .with_rotation(rotation),
                         // The model shouldn't show until some progress has been made
-                        ModelVisibility::Hidden,
+                        Visibility::Hidden,
                         BreakingBlockMarker,
                     ))
                     .id()
@@ -746,7 +747,7 @@ fn handle_right_clicks(
     world_map: Res<WorldMap>,
     items: Res<Items>,
     item_registry: Res<ItemRegistry>,
-    model_map: Res<ModelMap>,
+    entity_map: Res<EntityMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
     mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
@@ -831,7 +832,7 @@ fn handle_right_clicks(
                         };
 
                         for (model_collider, global_transform) in
-                            model_query.iter_many(model_map.iter_entities(&chunk_position))
+                            model_query.iter_many(entity_map.iter_entities(&chunk_position))
                         {
                             if model_collider
                                 .intersection(

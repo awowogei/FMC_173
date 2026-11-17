@@ -4,11 +4,12 @@ use fmc::{
     blocks::{BlockPosition, Blocks},
     database::Database,
     items::{DropTable, Items},
-    models::{AnimationPlayer, Model, ModelVisibility, Models},
     math::{DQuat, DVec3},
+    models::{AnimationPlayer, Model, Models},
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
+    visibility::Visibility,
     world::WorldMap,
 };
 
@@ -153,7 +154,7 @@ fn hunt_player(
         &mut AnimationPlayer,
         &HandHits,
         &GlobalTransform,
-        &ModelVisibility,
+        &Visibility,
     )>,
 ) {
     for (

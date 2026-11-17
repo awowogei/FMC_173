@@ -1,13 +1,14 @@
 use fmc::{
     items::{ItemStack, Items},
-    models::{AnimationPlayer, Model, ModelMap, Models},
     math::DVec3,
+    models::{AnimationPlayer, Model, Models},
     networking::Server,
     physics::{Collider, Physics},
     players::Camera,
     prelude::*,
     protocol::messages,
     random::Rng,
+    visibility::EntityMap,
     world::{ChunkSubscriptions, chunk::ChunkPosition},
 };
 
@@ -117,7 +118,7 @@ fn spawn_model(
 fn item_pickup(
     mut commands: Commands,
     net: Res<Server>,
-    model_map: Res<ModelMap>,
+    entity_map: Res<EntityMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     mut players: Query<(&GlobalTransform, &mut Inventory, &Health, &Camera)>,
     mut dropped_items: Query<(Entity, &mut DroppedItem, &mut Physics, &Transform)>,
@@ -136,7 +137,7 @@ fn item_pickup(
         let neighbourhood = ChunkPosition::from(player_transform.translation()).neighbourhood();
         let item_entities = neighbourhood
             .iter()
-            .flat_map(|chunk_position| model_map.iter_entities(chunk_position));
+            .flat_map(|chunk_position| entity_map.iter_entities(chunk_position));
 
         for item_entity in item_entities {
             let Ok((entity, mut dropped_item, mut physics, item_transform)) =

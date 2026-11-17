@@ -3,14 +3,15 @@ use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 use fmc::{
     blocks::{BlockPosition, Blocks},
     items::{DropTable, ItemStack, Items},
-    models::{Model, ModelColor, ModelVisibility, Models},
     math::{DQuat, DVec2, DVec3},
+    models::{Model, ModelColor, Models},
     networking::Server,
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     protocol::messages,
     random::{Rng, UniformDistribution},
+    visibility::Visibility,
     world::{
         ChunkSubscriptions, Surface, WorldMap,
         chunk::{Chunk, ChunkPosition},
@@ -621,12 +622,7 @@ fn play_random_sound(
     net: Res<Server>,
     time: Res<Time>,
     mobs: Res<Mobs>,
-    mut mob_query: Query<(
-        &Mob,
-        &GlobalTransform,
-        &ModelVisibility,
-        &mut MobRandomSound,
-    )>,
+    mut mob_query: Query<(&Mob, &GlobalTransform, &Visibility, &mut MobRandomSound)>,
 ) {
     for (mob, transform, visibility, mut random_sound) in mob_query.iter_mut() {
         if !visibility.is_visible() {

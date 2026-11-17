@@ -1,11 +1,12 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
     items::Items,
-    models::{Model, ModelMap},
     math::DVec3,
+    models::Model,
     physics::{Collider, Physics},
     players::Player,
     prelude::*,
+    visibility::EntityMap,
     world::{ChangedBlockEvent, WorldMap, chunk::ChunkPosition},
 };
 use std::collections::{HashMap, HashSet};
@@ -70,7 +71,7 @@ fn arrows(
     mut commands: Commands,
     time: Res<Time>,
     world_map: Res<WorldMap>,
-    model_map: Res<ModelMap>,
+    entity_map: Res<EntityMap>,
     mut arrow_query: Query<(Entity, &mut Arrow, &mut Transform)>,
     model_query: Query<
         (Entity, &Transform, &Collider, Has<Player>, Has<Mob>),
@@ -100,7 +101,7 @@ fn arrows(
 
         for chunk_position in ChunkPosition::from(transform.translation).neighbourhood() {
             for (model_entity, model_transform, collider, is_player, is_mob) in
-                model_query.iter_many(model_map.iter_entities(&chunk_position))
+                model_query.iter_many(entity_map.iter_entities(&chunk_position))
             {
                 let Some((distance, _)) = collider.ray_intersection(model_transform, &transform)
                 else {

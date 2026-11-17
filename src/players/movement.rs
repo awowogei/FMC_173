@@ -1,12 +1,13 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
-    models::{Model, ModelId, ModelMap, ModelSystems},
+    models::{Model, ModelId, ModelSystems},
     networking::Server,
     physics::Friction,
     physics::{Collider, shapes::Aabb},
     players::Player,
     prelude::*,
     protocol::messages,
+    visibility::EntityMap,
     world::{
         ChangedBlockEvent, ChunkLoadEvent, ChunkSubscriptions, WorldMap,
         chunk::{Chunk, ChunkPosition},
@@ -143,7 +144,7 @@ fn send_setup(net: Res<Server>, new_players: Query<Entity, Added<Player>>) {
 fn send_block_models(
     net: Res<Server>,
     world_map: Res<WorldMap>,
-    model_map: Res<ModelMap>,
+    entity_map: Res<EntityMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     block_model_query: Query<&BlockPosition, With<Model>>,
     players: Query<(Entity, Ref<ChunkPosition>), With<Player>>,
@@ -156,7 +157,7 @@ fn send_block_models(
             nearby_models.clear();
 
             for chunk_position in chunk_position.neighbourhood() {
-                for model_entity in model_map.iter_entities(&chunk_position) {
+                for model_entity in entity_map.iter_entities(&chunk_position) {
                     // TODO: restricted to block models for now, but should include all models
                     let Ok(block_position) = block_model_query.get(model_entity) else {
                         continue;

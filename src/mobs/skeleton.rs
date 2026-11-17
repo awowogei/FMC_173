@@ -3,12 +3,13 @@ use std::collections::HashSet;
 use fmc::{
     blocks::{BlockPosition, Blocks},
     items::{DropTable, Items},
-    models::{AnimationPlayer, BoneAttachment, Model, ModelVisibility, Models},
     math::{DQuat, DVec3},
+    models::{AnimationPlayer, BoneAttachment, Model, Models},
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
     random::{Rng, UniformDistribution},
+    visibility::Visibility,
     world::WorldMap,
 };
 
