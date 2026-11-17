@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use fmc::{
-    commands::{AddCommand, Command, CommandSystems},
+    commands::{AddCommand, Command, CommandError, CommandSystems},
     networking::Server,
     prelude::*,
     protocol::messages,
@@ -94,9 +94,11 @@ impl Command for TimeCommand {
     const NAME: &'static str = "time";
     const USAGE: &'static str = "time <noon|night|dawn|dusk|0-1200> - Set the time of day";
 
-    fn parse(_source: Entity, args: &[&str]) -> Result<Self, String> {
+    fn parse(_source: Entity, args: &[&str]) -> Result<Self, CommandError> {
         let [time] = args else {
-            return Err(Self::USAGE.to_owned());
+            return Err(CommandError::Malformed {
+                reason: "expected exactly one argument".to_owned(),
+            });
         };
 
         match *time {
@@ -106,11 +108,14 @@ impl Command for TimeCommand {
             "dusk" => Ok(Self::Dusk),
             custom_time => match custom_time.parse::<u32>() {
                 Ok(time) if time <= 1200 => Ok(Self::Custom(time as f32)),
-                Ok(_) => Err("Time must be between 0 and 1200".to_owned()),
-                Err(_) => Err(
-                    "Invalid time, use noon, night, dawn, dusk or a number from 0 to 1200"
-                        .to_owned(),
-                ),
+                Ok(_) => Err(CommandError::Malformed {
+                    reason: "time must be between 0 and 1200".to_owned(),
+                }),
+                Err(_) => Err(CommandError::Malformed {
+                    reason: format!(
+                        "invalid time '{custom_time}', use noon, night, dawn, dusk or a number from 0 to 1200"
+                    ),
+                }),
             },
         }
     }

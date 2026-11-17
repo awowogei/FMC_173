@@ -1,7 +1,7 @@
 use crate::fmc::{
     commands::{
-        AddCommand, Command, CommandError, CommandEvent, CommandRegistry, CommandSystems,
-        RegisteredCommand,
+        AddCommand, Command, CommandError, CommandErrorEvent, CommandEvent, CommandRegistry,
+        CommandSystems,
     },
     networking::{NetworkEvent, NetworkMessage, Server},
     permissions::{Permissions, Roles},
@@ -39,9 +39,7 @@ fn chat_line(text: impl Into<String>) -> messages::InterfaceTextUpdate {
 
 fn handle_chat_messages(
     net: Res<Server>,
-    command_registry: Res<CommandRegistry>,
-    permissions: Res<Permissions>,
-    player_query: Query<(&Player, Option<&Roles>)>,
+    player_query: Query<&Player>,
     mut command_events: MessageWriter<CommandEvent>,
     mut chat_message_query: MessageReader<NetworkMessage<messages::InterfaceTextInput>>,
 ) {
@@ -50,7 +48,7 @@ fn handle_chat_messages(
             continue;
         }
 
-        let Ok((player, roles)) = player_query.get(chat_message.player_entity) else {
+        let Ok(player) = player_query.get(chat_message.player_entity) else {
             // TODO: Should probably disconnect
             continue;
         };
@@ -63,42 +61,11 @@ fn handle_chat_messages(
             continue;
         };
 
-        let mut allowed = false;
-        if let Some(name) = command_text.split_whitespace().next() {
-            if let Some(command) = command_registry.get(name) {
-                allowed = is_allowed(command, roles, &permissions);
-            }
-        }
-
-        if !allowed {
-            net.send_one(
-                chat_message.player_entity,
-                chat_line("Invalid command, type /help for a list of commands"),
-            );
-            continue;
-        }
-
         command_events.write(CommandEvent {
             source: chat_message.player_entity,
             text: command_text.to_owned(),
         });
     }
-}
-
-fn is_allowed(
-    command: &RegisteredCommand,
-    roles: Option<&Roles>,
-    permissions: &Permissions,
-) -> bool {
-    let Some(permission) = command.permission else {
-        return true;
-    };
-
-    let Some(roles) = roles else {
-        return false;
-    };
-
-    permissions.has_permission(roles, &permission)
 }
 
 #[derive(Message)]
@@ -111,11 +78,15 @@ impl Command for HelpCommand {
     const NAME: &'static str = "help";
     const USAGE: &'static str = "help [command] - List the available commands and their usage";
 
-    fn parse(source: Entity, args: &[&str]) -> Result<Self, String> {
+    fn parse(source: Entity, args: &[&str]) -> Result<Self, CommandError> {
         let prefix = match args {
             [] => String::new(),
             [prefix] => prefix.to_string(),
-            _ => return Err(Self::USAGE.to_owned()),
+            _ => {
+                return Err(CommandError::Malformed {
+                    reason: "expected at most one argument".to_owned(),
+                });
+            }
         };
 
         Ok(Self { source, prefix })
@@ -139,7 +110,14 @@ fn handle_help_command(
             chat_line("------------------------- Help --------------------------"),
         );
         for command in command_registry.query(&help_command.prefix) {
-            if is_allowed(command, roles, &permissions) {
+            let allowed = match command.permission {
+                Some(permission) => {
+                    roles.is_some_and(|roles| permissions.has_permission(roles, &permission))
+                }
+                None => true,
+            };
+
+            if allowed {
                 net.send_one(
                     help_command.source,
                     chat_line(format!("/{}", command.usage)),
@@ -152,11 +130,19 @@ fn handle_help_command(
 fn send_command_errors(
     net: Res<Server>,
     player_query: Query<(), With<Player>>,
-    mut errors: MessageReader<CommandError>,
+    mut errors: MessageReader<CommandErrorEvent>,
 ) {
-    for error in errors.read() {
-        if player_query.contains(error.source) {
-            net.send_one(error.source, chat_line(error.text.as_str()));
+    for event in errors.read() {
+        if player_query.contains(event.source) {
+            let text = match &event.error {
+                CommandError::Invalid { .. } => {
+                    "Invalid command, type /help for a list of commands".to_owned()
+                }
+                CommandError::Malformed { reason } => format!("Malformed command: {reason}"),
+                CommandError::Failed { reason } => reason.clone(),
+            };
+
+            net.send_one(event.source, chat_line(text));
         }
     }
 }

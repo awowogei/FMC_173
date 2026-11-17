@@ -1,6 +1,6 @@
 use fmc::{
     blocks::{BlockPosition, Blocks},
-    commands::{AddCommand, Command, CommandError, CommandSystems},
+    commands::{AddCommand, Command, CommandError, CommandErrorEvent, CommandSystems},
     database::Database,
     ecs::query::QueryData,
     interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
@@ -87,19 +87,27 @@ struct GameModeCommand {
 
 impl Command for GameModeCommand {
     const NAME: &'static str = "gamemode";
-    const USAGE: &'static str = "gamemode <0|1> [player] - survival(0) or creative(1)";
+    const USAGE: &'static str = "gamemode <0|1> [username] - survival(0) or creative(1)";
 
-    fn parse(source: Entity, args: &[&str]) -> Result<Self, String> {
+    fn parse(source: Entity, args: &[&str]) -> Result<Self, CommandError> {
         let (mode, target) = match args {
             [mode] => (*mode, None),
             [mode, target] => (*mode, Some(target.to_string())),
-            _ => return Err(Self::USAGE.to_owned()),
+            _ => {
+                return Err(CommandError::Malformed {
+                    reason: "expected a game mode and an optional username".to_owned(),
+                });
+            }
         };
 
         let game_mode = match mode {
             "0" => GameMode::Survival,
             "1" => GameMode::Creative,
-            _ => return Err("Invalid game mode, use 0 or 1".to_owned()),
+            _ => {
+                return Err(CommandError::Malformed {
+                    reason: format!("invalid game mode '{mode}', use 0 or 1"),
+                });
+            }
         };
 
         Ok(Self {
@@ -115,7 +123,7 @@ fn handle_gamemode_command(
     roles_query: Query<&Roles>,
     mut player_query: Query<(Entity, &Player, &mut GameMode)>,
     mut game_mode_commands: MessageReader<GameModeCommand>,
-    mut errors: MessageWriter<CommandError>,
+    mut errors: MessageWriter<CommandErrorEvent>,
 ) {
     for game_mode_command in game_mode_commands.read() {
         let source = game_mode_command.source;
@@ -128,9 +136,12 @@ fn handle_gamemode_command(
             }
 
             if !allowed {
-                errors.write(CommandError {
+                errors.write(CommandErrorEvent {
                     source,
-                    text: "You are not allowed to change the game mode of other players".to_owned(),
+                    error: CommandError::Failed {
+                        reason: "You are not allowed to change the game mode of other players"
+                            .to_owned(),
+                    },
                 });
                 continue;
             }
@@ -144,9 +155,11 @@ fn handle_gamemode_command(
             }
 
             let Some(entity) = found else {
-                errors.write(CommandError {
+                errors.write(CommandErrorEvent {
                     source,
-                    text: format!("There is no player named '{target}'"),
+                    error: CommandError::Failed {
+                        reason: format!("There is no player with the username '{target}'"),
+                    },
                 });
                 continue;
             };
@@ -155,9 +168,11 @@ fn handle_gamemode_command(
         }
 
         let Ok((_, _, mut game_mode)) = player_query.get_mut(target_entity) else {
-            errors.write(CommandError {
+            errors.write(CommandErrorEvent {
                 source,
-                text: "Only players have a game mode".to_owned(),
+                error: CommandError::Failed {
+                    reason: "No username specified".to_owned(),
+                },
             });
             continue;
         };
