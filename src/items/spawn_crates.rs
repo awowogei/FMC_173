@@ -1,11 +1,13 @@
 use fmc::{
-    blocks::Blocks,
     items::ItemId,
     players::{Camera, Player, Targets},
     prelude::*,
 };
 
-use crate::mobs::{Mob, MobId, Mobs};
+use crate::{
+    mobs::{Mob, MobId, Mobs},
+    world::blocks::Blocks,
+};
 
 use super::{ItemRegistry, ItemUses};
 
@@ -52,6 +54,7 @@ fn register_crates(
 fn use_crate(
     mut commands: Commands,
     mobs: Res<Mobs>,
+    blocks: Res<Blocks>,
     player_query: Query<(&GlobalTransform, &Camera, &Targets), With<Player>>,
     mut crate_uses: Query<(&mut ItemUses, &MobCrate), Changed<ItemUses>>,
 ) {
@@ -64,7 +67,6 @@ fn use_crate(
     for player_entity in uses.read() {
         let (transform, camera, targets) = player_query.get(player_entity).unwrap();
 
-        let blocks = Blocks::get();
         let Some(target) =
             targets.get_first_block(|block_id| blocks.get_config(block_id).is_solid())
         else {

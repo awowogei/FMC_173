@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    blocks::{BlockData, Blocks},
+    blocks::{BlockData, BlockSpawnFunctions},
     ecs::system::EntityCommands,
     interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
-    items::{ItemStack, Items},
+    items::ItemStack,
     networking::Server,
     players::Player,
     prelude::*,
@@ -12,8 +12,12 @@ use fmc::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::Blocks;
 use crate::{
-    items::crafting::{CraftingGrid, Recipes},
+    items::{
+        Items,
+        crafting::{CraftingGrid, Recipes},
+    },
     players::HandInteractions,
 };
 
@@ -106,10 +110,8 @@ impl CraftingTableRegistry {
     }
 }
 
-fn setup(mut blocks: ResMut<Blocks>) {
-    let block_id = blocks.get_id("crafting_table");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_function);
+fn setup(blocks: Res<Blocks>, mut spawn_functions: ResMut<BlockSpawnFunctions>) {
+    spawn_functions.set(blocks.get_id("crafting_table"), spawn_function);
 }
 
 fn spawn_function(commands: &mut EntityCommands, block_data: Option<&BlockData>) {

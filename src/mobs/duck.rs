@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    items::Items,
+    blocks::BlockPosition,
     math::DVec3,
     models::{AnimationPlayer, Model, Models},
     physics::{Buoyancy, Collider, Physics},
@@ -12,7 +11,11 @@ use fmc::{
     world::{WorldMap, chunk::ChunkPosition},
 };
 
-use crate::players::{HandInteractions, Inventory};
+use crate::{
+    items::Items,
+    players::{HandInteractions, Inventory},
+    world::blocks::Blocks,
+};
 
 use super::pathfinding::PathFinder;
 
@@ -88,6 +91,7 @@ fn remove_duck(
 
 fn beg_for_bread(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     items: Res<Items>,
     players: Query<(&Inventory, &GlobalTransform), With<Player>>,
     mut ducks: Query<(&mut Duck, &mut PathFinder, &GlobalTransform)>,
@@ -116,6 +120,7 @@ fn beg_for_bread(
 
             path_finder.find_path(
                 &world_map,
+                &blocks,
                 duck_transform.translation(),
                 player_transform.translation() - offset,
             );
@@ -130,6 +135,7 @@ fn beg_for_bread(
 
 fn wander(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     time: Res<Time>,
     mut ducks: Query<(&mut Duck, &mut PathFinder, &GlobalTransform)>,
     mut rng: Local<Rng>,
@@ -153,7 +159,6 @@ fn wander(
         let mut already_visited = HashSet::new();
         let mut potential_blocks = Vec::new();
 
-        let blocks = Blocks::get();
         let water_id = blocks.get_id("ocean_top");
 
         let start = BlockPosition::from(transform.translation());
@@ -247,7 +252,7 @@ fn wander(
 
         if let Some(best_position) = best_position {
             let goal = best_position.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
-            path_finder.find_path(&world_map, transform.translation(), goal);
+            path_finder.find_path(&world_map, &blocks, transform.translation(), goal);
         }
     }
 }

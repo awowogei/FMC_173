@@ -1,5 +1,5 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks},
+    blocks::BlockPosition,
     commands::{AddCommand, Command, CommandError, CommandErrorEvent, CommandSystems},
     database::Database,
     ecs::query::QueryData,
@@ -25,7 +25,7 @@ use crate::{
     items::{DroppedItem, crafting::CraftingGrid},
     mobs::MobCap,
     settings::Settings,
-    world::WorldProperties,
+    world::{WorldProperties, blocks::Blocks},
 };
 
 use self::health::HealthBundle;
@@ -473,6 +473,7 @@ pub struct RespawnEvent {
 // infinitely.
 fn respawn_players(
     net: Res<Server>,
+    blocks: Res<Blocks>,
     world_properties: Res<WorldProperties>,
     world_map: Res<WorldMap>,
     database: Res<Database>,
@@ -481,7 +482,6 @@ fn respawn_players(
     mut respawn_events: MessageReader<RespawnEvent>,
 ) {
     for respawn_event in respawn_events.read() {
-        let blocks = Blocks::get();
         let air = blocks.get_id("air");
 
         let mut chunk_position = ChunkPosition::from(world_properties.spawn_point.center);

@@ -1,12 +1,8 @@
-use fmc::{
-    blocks::{BlockPosition, Blocks},
-    database::Database,
-    prelude::*,
-    world::WorldMap,
-};
+use fmc::{blocks::BlockPosition, database::Database, prelude::*, world::WorldMap};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::Settings;
+use blocks::Blocks;
 
 pub mod blocks;
 mod terrain_generation;

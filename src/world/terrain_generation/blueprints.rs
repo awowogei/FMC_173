@@ -4,13 +4,15 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    blocks::{BLOCK_CONFIG_PATH, BlockId, BlockPosition, Blocks},
+    blocks::{BLOCK_CONFIG_PATH, BlockId, BlockPosition},
     random::{Bernoulli, Choose, Rng, UniformDistribution},
     world::{
         Surface, TerrainFeature,
         chunk::{Chunk, ChunkPosition},
     },
 };
+
+use crate::world::blocks::Blocks;
 
 pub const BLUEPRINT_PATH: &str = "./assets/server/blueprints/";
 

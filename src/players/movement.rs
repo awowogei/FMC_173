@@ -1,5 +1,5 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks},
+    blocks::BlockPosition,
     models::{Model, ModelId, ModelSystems},
     networking::Server,
     physics::Friction,
@@ -16,6 +16,8 @@ use fmc::{
 
 use serde::Serialize;
 use std::collections::HashMap;
+
+use crate::world::blocks::Blocks;
 
 pub(super) struct MovementPlugin;
 impl Plugin for MovementPlugin {
@@ -114,10 +116,10 @@ impl From<&Friction> for Vec3Friction {
     }
 }
 
-fn send_setup(net: Res<Server>, new_players: Query<Entity, Added<Player>>) {
+fn send_setup(net: Res<Server>, blocks: Res<Blocks>, new_players: Query<Entity, Added<Player>>) {
     for player_entity in new_players.iter() {
         // TODO: These can be pre-computed
-        let block_collision_configs = Blocks::get()
+        let block_collision_configs = blocks
             .configs()
             .iter()
             .map(|config| CollisionConfig {
@@ -143,6 +145,7 @@ fn send_setup(net: Res<Server>, new_players: Query<Entity, Added<Player>>) {
 
 fn send_block_models(
     net: Res<Server>,
+    blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     entity_map: Res<EntityMap>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
@@ -163,7 +166,7 @@ fn send_block_models(
                         continue;
                     };
                     let block_id = world_map.get_block(*block_position).unwrap();
-                    let block_config = Blocks::get().get_config(&block_id);
+                    let block_config = blocks.get_config(&block_id);
 
                     if block_config.is_solid() {
                         nearby_models.insert(
@@ -202,8 +205,8 @@ fn send_block_models(
     }
 
     for block_update in changed_blocks.read() {
-        let from = Blocks::get().get_config(&block_update.from.0);
-        let to = Blocks::get().get_config(&block_update.to.0);
+        let from = blocks.get_config(&block_update.from.0);
+        let to = blocks.get_config(&block_update.to.0);
 
         if from.model.is_none() && to.model.is_none() {
             continue;

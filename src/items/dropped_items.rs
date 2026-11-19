@@ -1,5 +1,5 @@
 use fmc::{
-    items::{ItemStack, Items},
+    items::ItemStack,
     math::DVec3,
     models::{AnimationPlayer, Model, Models},
     networking::Server,
@@ -12,7 +12,10 @@ use fmc::{
     world::{ChunkSubscriptions, chunk::ChunkPosition},
 };
 
-use crate::players::{Health, Inventory};
+use crate::{
+    items::Items,
+    players::{Health, Inventory},
+};
 
 pub struct DroppedItemsPlugin;
 impl Plugin for DroppedItemsPlugin {

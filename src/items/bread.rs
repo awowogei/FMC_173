@@ -1,8 +1,8 @@
-use fmc::{items::Items, players::Player, prelude::*};
+use fmc::{players::Player, prelude::*};
 
 use crate::players::{HealEvent, Inventory};
 
-use super::{ItemRegistry, ItemUses};
+use super::{ItemRegistry, ItemUses, Items};
 
 pub struct BreadPlugin;
 impl Plugin for BreadPlugin {

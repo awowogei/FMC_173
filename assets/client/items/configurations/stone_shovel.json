@@ -1,7 +1,7 @@
 {
     "name": "Stone Shovel",
     "image": "stone_shovel.png",
-    "equip_model": "stone_shovel",
+    "model": "stone_shovel",
     "stack_size": 1,
     "tool": {
         "name": "shovel",

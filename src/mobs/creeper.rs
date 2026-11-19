@@ -1,6 +1,6 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    items::{DropTable, Items},
+    blocks::BlockPosition,
+    items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, ModelColor, Models},
     networking::Server,
@@ -11,7 +11,12 @@ use fmc::{
     world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 
-use crate::{explosions::ExplosionEvent, items::spawn_crates::MobCrates, players::HandHits};
+use crate::{
+    explosions::ExplosionEvent,
+    items::{Items, spawn_crates::MobCrates},
+    players::HandHits,
+    world::blocks::Blocks,
+};
 
 use super::{
     Mob, MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target, Wanderer,
@@ -127,6 +132,7 @@ fn actions(
     time: Res<Time>,
     net: Res<Server>,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     models: Res<Models>,
     player_query: Query<&Transform, With<Player>>,
     mut creeper_query: Query<
@@ -187,7 +193,7 @@ fn actions(
         if creeper.fuse >= 1.5 {
             explosion_events.write(ExplosionEvent {
                 position: transform.translation,
-                radius: 3,
+                power: 3.0,
             });
             commands.entity(creeper_entity).despawn();
         } else if creeper.fuse > 0.0 {
@@ -206,6 +212,7 @@ fn actions(
 
         path_finder.find_path(
             &world_map,
+            &blocks,
             transform.translation,
             player_transform.translation,
         );

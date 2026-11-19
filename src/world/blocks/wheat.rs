@@ -1,9 +1,11 @@
 use fmc::{
-    blocks::{BlockData, BlockPosition, Blocks},
+    blocks::{BlockData, BlockPosition, BlockSpawnFunctions},
     ecs::system::EntityCommands,
     prelude::*,
     world::BlockUpdate,
 };
+
+use super::Blocks;
 
 pub struct WheatPlugin;
 impl Plugin for WheatPlugin {
@@ -27,34 +29,14 @@ impl Default for Wheat {
     }
 }
 
-fn setup(mut blocks: ResMut<Blocks>) {
-    let block_id = blocks.get_id("wheat_0");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_0);
-
-    let block_id = blocks.get_id("wheat_1");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_1);
-
-    let block_id = blocks.get_id("wheat_2");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_2);
-
-    let block_id = blocks.get_id("wheat_3");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_3);
-
-    let block_id = blocks.get_id("wheat_4");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_4);
-
-    let block_id = blocks.get_id("wheat_5");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_5);
-
-    let block_id = blocks.get_id("wheat_6");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_wheat_6);
+fn setup(blocks: Res<Blocks>, mut spawn_functions: ResMut<BlockSpawnFunctions>) {
+    spawn_functions.set(blocks.get_id("wheat_0"), spawn_wheat_0);
+    spawn_functions.set(blocks.get_id("wheat_1"), spawn_wheat_1);
+    spawn_functions.set(blocks.get_id("wheat_2"), spawn_wheat_2);
+    spawn_functions.set(blocks.get_id("wheat_3"), spawn_wheat_3);
+    spawn_functions.set(blocks.get_id("wheat_4"), spawn_wheat_4);
+    spawn_functions.set(blocks.get_id("wheat_5"), spawn_wheat_5);
+    spawn_functions.set(blocks.get_id("wheat_6"), spawn_wheat_6);
 }
 
 fn spawn_wheat_0(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {
@@ -104,6 +86,7 @@ fn spawn_wheat_6(commands: &mut EntityCommands, _block_data: Option<&BlockData>)
 // TODO: Only run this function at daytime?
 fn grow(
     time: Res<Time>,
+    blocks: Res<Blocks>,
     mut growing: Query<(&mut Wheat, &BlockPosition)>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
@@ -119,7 +102,6 @@ fn grow(
 
         wheat.stage += 1;
 
-        let blocks = Blocks::get();
         let block_id = match wheat.stage {
             0 => blocks.get_id("wheat_1"),
             1 => blocks.get_id("wheat_2"),

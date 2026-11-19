@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
-use fmc::blocks::{BLOCK_CONFIG_PATH, BlockId, Blocks};
+use fmc::blocks::{BLOCK_CONFIG_PATH, BlockId};
 
 use super::blueprints::{BLUEPRINT_PATH, Blueprint, load_blueprints};
+use crate::world::blocks::Blocks;
 
 pub struct Biome {
     pub top_layer_block: BlockId,

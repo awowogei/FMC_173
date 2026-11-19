@@ -2,6 +2,6 @@
     "name": "Ladder",
     "image": "ladder.png",
     "block": "ladder",
-    "equip_model": "ladder",
+    "model": "ladder",
     "stack_size": 64
 }

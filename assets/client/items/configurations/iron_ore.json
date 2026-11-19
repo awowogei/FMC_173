@@ -2,6 +2,6 @@
     "name": "Iron Ore",
     "image": "iron_ore.png",
     "block": "iron_ore",
-    "equip_model": "iron_ore",
+    "model": "iron_ore",
     "stack_size": 64
 }

@@ -4,10 +4,12 @@ use std::{
 };
 
 use fmc::{
-    blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
+    blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState},
     prelude::*,
     world::{BlockUpdate, ChangedBlockEvent},
 };
+
+use super::Blocks;
 
 // NOTE: The way this has been done seems to be the wrong approach. I've ended up just embracing the
 // complexity in order to make a semi-functioning system, but another approach is sorely needed. The

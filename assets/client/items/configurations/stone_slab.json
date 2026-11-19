@@ -2,6 +2,6 @@
     "name": "Stone Slab",
     "image": "stone_slab.png",
     "block": "stone_slab",
-    "equip_model": "stone_slab",
+    "model": "stone_slab",
     "stack_size": 64
 }

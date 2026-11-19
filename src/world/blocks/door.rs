@@ -1,9 +1,10 @@
 use fmc::{
-    blocks::{BlockData, Blocks},
+    blocks::{BlockData, BlockSpawnFunctions},
     math::DQuat,
     prelude::*,
 };
 
+use super::Blocks;
 use crate::players::HandInteractions;
 
 pub struct DoorPlugin;
@@ -19,10 +20,8 @@ struct Door {
     open: bool,
 }
 
-fn setup(mut blocks: ResMut<Blocks>) {
-    let block_id = blocks.get_id("oak door");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_function);
+fn setup(blocks: Res<Blocks>, mut spawn_functions: ResMut<BlockSpawnFunctions>) {
+    spawn_functions.set(blocks.get_id("oak door"), spawn_function);
 }
 
 fn spawn_function(commands: &mut EntityCommands, _block_data: Option<&BlockData>) {

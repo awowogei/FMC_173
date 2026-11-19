@@ -2,6 +2,6 @@
     "name": "Oak Stairs",
     "image": "oak_stairs.png",
     "block": "oak_stairs",
-    "equip_model": "oak_stairs",
+    "model": "oak_stairs",
     "stack_size": 64
 }

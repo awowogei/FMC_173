@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    items::{DropTable, Items},
+    blocks::BlockPosition,
+    items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, BoneAttachment, Model, Models},
     physics::{Collider, Physics},
@@ -14,9 +14,10 @@ use fmc::{
 };
 
 use crate::{
-    items::{arrows::Arrow, spawn_crates::MobCrates},
+    items::{Items, arrows::Arrow, spawn_crates::MobCrates},
     players::{GameMode, HandHits, PlayerDamageEvent},
     skybox::Clock,
+    world::blocks::Blocks,
 };
 
 use super::{
@@ -179,6 +180,7 @@ fn attack(
     mut commands: Commands,
     time: Res<Time>,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     models: Res<Models>,
     player_query: Query<(&Transform, &Camera), With<Player>>,
     mut skeletons: Query<(
@@ -230,6 +232,7 @@ fn attack(
         } else {
             path_finder.find_path(
                 &world_map,
+                &blocks,
                 skeleton_transform.translation,
                 player_transform.translation,
             );

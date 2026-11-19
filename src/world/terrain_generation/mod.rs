@@ -1,5 +1,5 @@
 use fmc::{
-    blocks::Blocks,
+    blocks::BlockId,
     noise::{Frequency, Noise},
     // noise::Noise,
     prelude::*,
@@ -9,6 +9,8 @@ use fmc::{
         chunk::{Chunk, ChunkPosition},
     },
 };
+
+use super::blocks::Blocks;
 
 mod biomes;
 mod blueprints;
@@ -20,13 +22,15 @@ pub struct Earth {
     terrain_shape: Noise,
     caves: Noise,
     seed: u64,
+    air: BlockId,
+    grass: BlockId,
 }
 
 impl TerrainGenerator for Earth {
     fn generate_chunk(&self, chunk_position: ChunkPosition) -> Chunk {
         let mut chunk = Chunk::default();
 
-        let air = Blocks::get().get_id("air");
+        let air = self.air;
         const MAX_HEIGHT: i32 = 120;
         if MAX_HEIGHT < chunk_position.y {
             // Don't waste time generating if it is guaranteed to be air.
@@ -185,6 +189,8 @@ impl Earth {
             terrain_shape,
             caves,
             seed,
+            air: blocks.get_id("air"),
+            grass: blocks.get_id("grass"),
         }
     }
 
@@ -385,9 +391,8 @@ impl Earth {
     }
 
     fn generate_features(&self, chunk_position: ChunkPosition, chunk: &mut Chunk) {
-        let blocks = Blocks::get();
-        let surface_blocks = [blocks.get_id("grass")];
-        let surface = Surface::new(chunk, &surface_blocks, blocks.get_id("air"));
+        let surface_blocks = [self.grass];
+        let surface = Surface::new(chunk, &surface_blocks, self.air);
 
         // x position is left 32 bits and z position the right 32 bits. z must be converted to u32
         // first because it will just fill the left 32 bits with junk. World seed is used to change

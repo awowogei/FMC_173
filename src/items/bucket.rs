@@ -1,14 +1,16 @@
 use fmc::{
-    blocks::Blocks,
-    items::{ItemStack, Items},
+    items::ItemStack,
     players::{Player, Target, Targets},
     prelude::*,
     world::{BlockUpdate, WorldMap},
 };
 
-use crate::{players::Inventory, world::blocks::water::Water};
+use crate::{
+    players::Inventory,
+    world::blocks::{Blocks, water::Water},
+};
 
-use super::{ItemRegistry, ItemUses};
+use super::{ItemRegistry, ItemUses, Items};
 
 pub struct BucketPlugin;
 impl Plugin for BucketPlugin {
@@ -43,6 +45,7 @@ fn register_buckets(
 
 fn use_bucket(
     water: Res<Water>,
+    blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     items: Res<Items>,
     mut player_query: Query<(&Targets, &mut Inventory), With<Player>>,
@@ -71,18 +74,19 @@ fn use_bucket(
 
         block_update_writer.write(BlockUpdate::Replace {
             position: source_position,
-            block_id: Blocks::get().get_id("air"),
+            block_id: blocks.get_id("air"),
             block_state: None,
             block_data: None,
         });
 
         let water_bucket = items.get_config_by_name("water_bucket").unwrap();
-        *inventory.held_item_stack_mut() = ItemStack::new(water_bucket, 1);
+        *inventory.held_item_stack_mut() = ItemStack::new(water_bucket.id, 1);
     }
 }
 
 fn use_water_bucket(
     water: Res<Water>,
+    blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     items: Res<Items>,
     mut player_query: Query<(&Targets, &mut Inventory), With<Player>>,
@@ -92,8 +96,6 @@ fn use_water_bucket(
     let Ok(mut uses) = water_bucket_uses.single_mut() else {
         return;
     };
-
-    let blocks = Blocks::get();
 
     for player_entity in uses.read() {
         let (targets, mut inventory) = player_query.get_mut(player_entity).unwrap();
@@ -130,6 +132,6 @@ fn use_water_bucket(
         });
 
         let bucket = items.get_config_by_name("bucket").unwrap();
-        *inventory.held_item_stack_mut() = ItemStack::new(bucket, 1);
+        *inventory.held_item_stack_mut() = ItemStack::new(bucket.id, 1);
     }
 }

@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
+    blocks::BlockPosition,
     database::Database,
-    items::{DropTable, Items},
+    items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, Models},
     physics::{Collider, Physics},
@@ -14,8 +14,9 @@ use fmc::{
 };
 
 use crate::{
-    items::spawn_crates::MobCrates,
+    items::{Items, spawn_crates::MobCrates},
     players::{GameMode, HandHits, PlayerDamageEvent},
+    world::blocks::Blocks,
 };
 
 use super::{
@@ -146,6 +147,7 @@ fn setup(
 
 fn hunt_player(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     models: Res<Models>,
     players: Query<(Entity, &GameMode, &GlobalTransform, &Camera), With<Player>>,
     mut zombies: Query<(
@@ -198,7 +200,6 @@ fn hunt_player(
                 );
                 let mut raycast = world_map.raycast(&transform, 10.0);
                 let mut hit = false;
-                let blocks = Blocks::get();
                 let player_block_position = BlockPosition::from(player_transform.translation());
                 while let Some(block_id) = raycast.next_block() {
                     if blocks.get_config(&block_id).is_solid() {
@@ -255,6 +256,7 @@ fn hunt_player(
 
         path_finder.find_path(
             &world_map,
+            &blocks,
             zombie_transform.translation(),
             player_transform.translation(),
         );

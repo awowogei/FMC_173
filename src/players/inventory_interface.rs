@@ -1,6 +1,6 @@
 use fmc::{
     interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
-    items::{ItemStack, Items},
+    items::ItemStack,
     networking::{NetworkMessage, Server},
     players::Player,
     prelude::*,
@@ -8,7 +8,10 @@ use fmc::{
 };
 
 use crate::{
-    items::crafting::{CraftingGrid, Recipes},
+    items::{
+        Items,
+        crafting::{CraftingGrid, Recipes},
+    },
     players::{Equipment, Inventory},
 };
 

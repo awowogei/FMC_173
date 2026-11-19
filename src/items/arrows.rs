@@ -1,6 +1,5 @@
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    items::Items,
+    blocks::BlockPosition,
     math::DVec3,
     models::Model,
     physics::{Collider, Physics},
@@ -11,10 +10,11 @@ use fmc::{
 };
 use std::collections::{HashMap, HashSet};
 
-use super::{ItemRegistry, ItemUses};
+use super::{ItemRegistry, ItemUses, Items};
 use crate::{
     mobs::Mob,
     players::{HealEvent, Inventory, PlayerDamageEvent},
+    world::blocks::Blocks,
 };
 
 pub struct ArrowPlugin;
@@ -70,6 +70,7 @@ impl StuckArrows {
 fn arrows(
     mut commands: Commands,
     time: Res<Time>,
+    blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     entity_map: Res<EntityMap>,
     mut arrow_query: Query<(Entity, &mut Arrow, &mut Transform)>,
@@ -122,7 +123,6 @@ fn arrows(
             }
         }
 
-        let blocks = Blocks::get();
         let mut friction = DVec3::ZERO;
         let mut raycast = world_map.raycast(&transform, max_distance);
         while let Some(block_id) = raycast.next_block() {

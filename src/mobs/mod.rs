@@ -1,8 +1,8 @@
 use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
-    items::{DropTable, ItemStack, Items},
+    blocks::BlockPosition,
+    items::drop_table::DropTable,
     math::{DQuat, DVec2, DVec3},
     models::{Model, ModelColor, Models},
     networking::Server,
@@ -20,9 +20,10 @@ use fmc::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    items::DroppedItem,
+    items::{DroppedItem, Items},
     players::{GameMode, HandHits, HandSystems, Inventory},
     skybox::Clock,
+    world::blocks::Blocks,
 };
 
 pub mod cow;
@@ -182,6 +183,7 @@ impl RandomMobs {
 fn spawn_friendly_random_mobs(
     mut commands: Commands,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     mobs: Res<Mobs>,
     random_mobs: Res<RandomMobs>,
     mut player_caps: Query<(&mut MobCap, &ChunkPosition)>,
@@ -203,7 +205,6 @@ fn spawn_friendly_random_mobs(
             continue;
         };
 
-        let blocks = Blocks::get();
         let grass = blocks.get_id("grass");
         let stone = blocks.get_id("stone");
         let air = blocks.get_id("air");
@@ -248,6 +249,7 @@ fn spawn_friendly_random_mobs(
 fn spawn_hostile_random_mobs(
     mut commands: Commands,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     mobs: Res<Mobs>,
     clock: Res<Clock>,
     random_mobs: Res<RandomMobs>,
@@ -283,7 +285,6 @@ fn spawn_hostile_random_mobs(
             continue;
         };
 
-        let blocks = Blocks::get();
         let grass = blocks.get_id("grass");
         let stone = blocks.get_id("stone");
         let air = blocks.get_id("air");
@@ -476,12 +477,7 @@ fn handle_hand_hits(
         for player in hits.iter() {
             let (inventory, camera) = player_inventory_query.get(player).unwrap();
             let damage = if let Some(item) = inventory.held_item_stack().item() {
-                let item_config = items.get_config(&item.id);
-                if let Some(damage_json) = item_config.properties.get("damage") {
-                    damage_json.as_u64().unwrap_or(1) as u32
-                } else {
-                    5
-                }
+                items.get_config(&item.id).damage.unwrap_or(5)
             } else {
                 5
             };
@@ -507,7 +503,6 @@ fn damage_mobs(
     net: Res<Server>,
     time: Res<Time>,
     mobs: Res<Mobs>,
-    items: Res<Items>,
     mut mob_query: Query<(
         Entity,
         &Mob,
@@ -573,16 +568,14 @@ fn damage_mobs(
             // Use the invincibility to keep the entity alive so the death animation can be shown.
             health.set_invincible(1.0);
 
-            if let Some((item_id, count)) = config.drop_table.drop(&mut rng) {
-                let item_config = items.get_config(&item_id);
-                let item_stack = ItemStack::new(item_config, 1);
-                for i in 0..count {
+            if let Some(mut dropped) = config.drop_table.drop(&mut rng) {
+                while let Some(item_stack) = dropped.pop() {
                     let random_direction = (rng.next_f32() * std::f32::consts::TAU) as f64;
                     let velocity_x = random_direction.sin() as f64 * 15.0 * rng.next_f32() as f64;
                     let velocity_z = random_direction.cos() as f64 * 15.0 * rng.next_f32() as f64;
                     let velocity_y = 8.5;
                     commands.spawn((
-                        DroppedItem::new(item_stack.clone()),
+                        DroppedItem::new(item_stack),
                         transform.clone(),
                         Physics {
                             velocity: DVec3::new(velocity_x, velocity_y, velocity_z),
@@ -854,6 +847,7 @@ impl Wanderer {
 
 fn wander(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     time: Res<Time>,
     mut wanderers: Query<(
         &mut Wanderer,
@@ -874,7 +868,6 @@ fn wander(
             continue;
         }
 
-        let blocks = Blocks::get();
         let grass_id = blocks.get_id("grass");
 
         let wander_distance = UniformDistribution::new(-8i32, 8);
@@ -928,7 +921,7 @@ fn wander(
         };
 
         let goal = best_position.as_dvec3() + DVec3::new(0.5, 0.0, 0.5);
-        path_finder.find_path(&world_map, transform.translation(), goal);
+        path_finder.find_path(&world_map, &blocks, transform.translation(), goal);
     }
 }
 
@@ -953,6 +946,7 @@ impl Target {
 
 fn targeting(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     player_query: Query<(Entity, &GameMode, &Transform, &Camera), With<Player>>,
     mob_query: Query<(Entity, &Transform, &MobHead), With<Mob>>,
     mut target_query: Query<(&mut Target, &Transform, &MobHead)>,
@@ -1018,12 +1012,7 @@ fn targeting(
                 continue;
             }
 
-            if has_line_of_sight(
-                &head_position,
-                &other_head_position,
-                &world_map,
-                Blocks::get(),
-            ) {
+            if has_line_of_sight(&head_position, &other_head_position, &world_map, &blocks) {
                 target.in_line_of_sight = true;
                 target.last_position = other_head_position;
             } else {
@@ -1048,12 +1037,7 @@ fn targeting(
                 }
 
                 let player_head_position = player_transform.translation + camera.translation;
-                if has_line_of_sight(
-                    &head_position,
-                    &player_head_position,
-                    &world_map,
-                    Blocks::get(),
-                ) {
+                if has_line_of_sight(&head_position, &player_head_position, &world_map, &blocks) {
                     target.set(Some(player_entity));
                     target.last_position = player_head_position;
                     break;

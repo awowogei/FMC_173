@@ -2,6 +2,6 @@
     "name": "Chest",
     "image": "chest.png",
     "block": "chest",
-    "equip_model": "chest",
+    "model": "chest",
     "stack_size": 64
 }

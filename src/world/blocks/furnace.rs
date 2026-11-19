@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    blocks::{BlockData, BlockPosition, Blocks},
+    blocks::{BlockData, BlockPosition, BlockSpawnFunctions},
     ecs::system::EntityCommands,
     interfaces::{HeldInterfaceStack, InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
-    items::{ItemStack, Items},
+    items::ItemStack,
     networking::Server,
     players::Player,
     prelude::*,
@@ -13,8 +13,12 @@ use fmc::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::Blocks;
 use crate::{
-    items::crafting::{CraftingGrid, Recipes},
+    items::{
+        Items,
+        crafting::{CraftingGrid, Recipes},
+    },
     players::HandInteractions,
 };
 
@@ -78,10 +82,7 @@ impl Furnace {
         if self.heat == 0.0 {
             if let Some(item) = self.fuel.item() {
                 let config = items.get_config(&item.id);
-                if let Some(fuel) = config.properties.get("fuel") {
-                    // TODO: Can't panic at runtime like this, make config proxy to deserialize
-                    // these extra fields.
-                    let fuel = fuel.as_f64().expect("The fuel property must a float") as f32;
+                if let Some(fuel) = config.fuel {
                     self.fuel.take(1);
                     self.heat = fuel;
                     self.heat_max = fuel;
@@ -191,14 +192,9 @@ impl FurnaceRegistry {
     }
 }
 
-fn setup(mut blocks: ResMut<Blocks>) {
-    let block_id = blocks.get_id("furnace");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_function);
-
-    let block_id = blocks.get_id("furnace_on");
-    let block = blocks.get_config_mut(&block_id);
-    block.set_spawn_function(spawn_function);
+fn setup(blocks: Res<Blocks>, mut spawn_functions: ResMut<BlockSpawnFunctions>) {
+    spawn_functions.set(blocks.get_id("furnace"), spawn_function);
+    spawn_functions.set(blocks.get_id("furnace_on"), spawn_function);
 }
 
 fn spawn_function(commands: &mut EntityCommands, block_data: Option<&BlockData>) {
@@ -218,6 +214,7 @@ const SMELT_TIME: f32 = 10.0;
 
 fn furnace(
     net: Res<Server>,
+    blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     time: Res<Time>,
     recipes: Res<Recipes>,
@@ -244,7 +241,7 @@ fn furnace(
         if furnace.heat != 0.0 && !furnace.on {
             block_update_writer.write(BlockUpdate::Swap {
                 position: *block_position,
-                block_id: Blocks::get().get_id("furnace_on"),
+                block_id: blocks.get_id("furnace_on"),
                 block_state: world_map.get_block_state(*block_position),
             });
 
@@ -252,7 +249,7 @@ fn furnace(
         } else if furnace.heat == 0.0 && furnace.on {
             block_update_writer.write(BlockUpdate::Swap {
                 position: *block_position,
-                block_id: Blocks::get().get_id("furnace"),
+                block_id: blocks.get_id("furnace"),
                 block_state: world_map.get_block_state(*block_position),
             });
 

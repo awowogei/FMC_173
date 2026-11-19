@@ -1,7 +1,7 @@
 {
     "name": "Stone Pickaxe",
     "image": "stone_pickaxe.png",
-    "equip_model": "stone_pickaxe",
+    "model": "stone_pickaxe",
     "stack_size": 1,
     "tool": {
         "name": "pickaxe",

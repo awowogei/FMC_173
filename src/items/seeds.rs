@@ -1,12 +1,12 @@
 use fmc::{
-    blocks::{BlockId, Blocks},
-    items::Items,
+    blocks::BlockId,
     players::{Player, Target, Targets},
     prelude::*,
     world::{BlockUpdate, WorldMap},
 };
 
-use super::{ItemRegistry, ItemUses};
+use super::{ItemRegistry, ItemUses, Items};
+use crate::world::blocks::Blocks;
 
 pub struct SeedPlugin;
 impl Plugin for SeedPlugin {
@@ -44,6 +44,7 @@ struct SeedConfig {
 
 fn use_seeds(
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     player_query: Query<&Targets, With<Player>>,
     mut hoe_uses: Query<(&mut ItemUses, &SeedConfig), Changed<ItemUses>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
@@ -71,7 +72,7 @@ fn use_seeds(
 
         block_update_writer.write(BlockUpdate::Replace {
             position: *block_position + IVec3::Y,
-            block_id: Blocks::get().get_id("wheat_0"),
+            block_id: blocks.get_id("wheat_0"),
             block_state: None,
             block_data: None,
         });

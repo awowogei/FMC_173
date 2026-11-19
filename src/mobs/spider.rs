@@ -1,5 +1,5 @@
 use fmc::{
-    items::{DropTable, Items},
+    items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, Models},
     physics::{Collider, Physics, shapes::Aabb},
@@ -10,8 +10,9 @@ use fmc::{
 };
 
 use crate::{
-    items::spawn_crates::MobCrates,
+    items::{Items, spawn_crates::MobCrates},
     players::{HandHits, PlayerDamageEvent},
+    world::blocks::Blocks,
 };
 
 use super::{
@@ -133,6 +134,7 @@ fn actions(
     mut commands: Commands,
     time: Res<Time>,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     models: Res<Models>,
     player_query: Query<&Transform, With<Player>>,
     mut spider_query: Query<
@@ -202,6 +204,7 @@ fn actions(
         } else {
             path_finder.find_path(
                 &world_map,
+                &blocks,
                 transform.translation,
                 player_transform.translation,
             );

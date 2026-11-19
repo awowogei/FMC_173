@@ -2,6 +2,6 @@
     "name": "Coal Ore",
     "image": "coal_ore.png",
     "block": "coal_ore",
-    "equip_model": "coal_ore",
+    "model": "coal_ore",
     "stack_size": 64
 }

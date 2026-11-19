@@ -1,6 +1,6 @@
 use fmc::{
-    blocks::{BlockId, Blocks},
-    items::{Item, ItemStack, Items},
+    blocks::BlockId,
+    items::{Item, ItemStack},
     math::DVec3,
     networking::Server,
     players::{Player, Target, Targets},
@@ -10,7 +10,8 @@ use fmc::{
     world::{BlockUpdate, ChunkSubscriptions, chunk::ChunkPosition},
 };
 
-use super::{DroppedItem, ItemRegistry, ItemUses};
+use super::{DroppedItem, ItemRegistry, ItemUses, Items};
+use crate::world::blocks::Blocks;
 
 pub struct HoePlugin;
 impl Plugin for HoePlugin {
@@ -51,6 +52,7 @@ struct HoeConfig {
 fn use_hoe(
     mut commands: Commands,
     net: Res<Server>,
+    blocks: Res<Blocks>,
     items: Res<Items>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
     player_query: Query<&Targets, With<Player>>,
@@ -77,14 +79,13 @@ fn use_hoe(
 
         if *block_id == config.grass {
             let item_config = items.get_config_by_name("wheat_seeds").unwrap();
-            let item_stack = ItemStack::new(item_config, 1);
+            let item_stack = ItemStack::new(item_config.id, 1);
             commands.spawn((
                 DroppedItem::new(item_stack),
                 Transform::from_translation(block_position.as_dvec3() + DVec3::new(0.5, 1.1, 0.5)),
             ));
         }
 
-        let blocks = Blocks::get();
         let soil_id = blocks.get_id("soil");
         let block_config = blocks.get_config(&soil_id);
 

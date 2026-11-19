@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
-    blocks::{BlockConfig, BlockFace, BlockId, BlockPosition, BlockRotation, BlockState, Blocks},
-    items::{ItemStack, Items},
+    blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState},
+    items::ItemStack,
     math::DVec3,
     models::{AnimationPlayer, Model, ModelConfig, Models},
     networking::{NetworkMessage, Server},
@@ -17,8 +17,9 @@ use fmc::{
 };
 
 use crate::{
-    items::{DroppedItem, ItemRegistry, ItemUseSystems, ItemUses},
+    items::{DroppedItem, ItemRegistry, ItemUseSystems, ItemUses, Items},
     players::Inventory,
+    world::blocks::{BlockConfig, Blocks},
 };
 
 pub struct HandPlugin;
@@ -75,6 +76,7 @@ impl HandHits {
 fn handle_left_clicks(
     mut clicks: MessageReader<NetworkMessage<messages::LeftClick>>,
     models: Res<Models>,
+    blocks: Res<Blocks>,
     mut player_query: Query<
         (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
         With<Player>,
@@ -117,7 +119,7 @@ fn handle_left_clicks(
                     distance,
                     entity,
                 } => {
-                    let block_config = Blocks::get().get_config(block_id);
+                    let block_config = blocks.get_config(block_id);
 
                     if block_config.hardness.is_some() {
                         let hit_position = camera_position + camera.forward() * *distance;
@@ -167,6 +169,7 @@ struct BreakingBlockMarker;
 fn break_blocks(
     mut commands: Commands,
     time: Res<Time>,
+    blocks: Res<Blocks>,
     net: Res<Server>,
     items: Res<Items>,
     models: Res<Models>,
@@ -182,8 +185,6 @@ fn break_blocks(
     mut rng: Local<Rng>,
 ) {
     let now = std::time::Instant::now();
-
-    let blocks = Blocks::get();
 
     for (block_position, (player_entity, block_id, block_face, hit_position, maybe_block_entity)) in
         mining_events.drain()
@@ -244,10 +245,9 @@ fn break_blocks(
 
             let prev_progress = breaking_block.progress;
 
-            let efficiency = if let Some(config) = tool_config {
-                config.tool_efficiency(block_config)
-            } else {
-                1.0
+            let efficiency = match tool_config.and_then(|config| config.tool.as_ref()) {
+                Some(tool) if block_config.tools.contains(&tool.name) => tool.efficiency,
+                _ => 1.0,
             };
             breaking_block.progress +=
                 (now - breaking_block.prev_hit).as_secs_f32() / hardness * efficiency;
@@ -339,12 +339,9 @@ fn break_blocks(
                 block_data: None,
             });
 
-            let Some(dropped_item_id) = block_config.drop(tool_config) else {
+            let Some(item_stack) = block_config.drop(tool_config) else {
                 continue;
             };
-
-            let item_config = items.get_config(&dropped_item_id);
-            let item_stack = ItemStack::new(item_config, 1);
 
             commands.spawn((
                 DroppedItem::new(item_stack),
@@ -745,6 +742,7 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
 fn handle_right_clicks(
     net: Res<Server>,
     world_map: Res<WorldMap>,
+    blocks: Res<Blocks>,
     items: Res<Items>,
     item_registry: Res<ItemRegistry>,
     entity_map: Res<EntityMap>,
@@ -790,8 +788,6 @@ fn handle_right_clicks(
                     action = ActionOrder::PlaceBlock;
                 }
                 ActionOrder::PlaceBlock => {
-                    let blocks = Blocks::get();
-
                     let Some(Target::Block {
                         block_position,
                         block_id,
@@ -803,7 +799,6 @@ fn handle_right_clicks(
                         continue;
                     };
 
-                    let blocks = Blocks::get();
                     let equipped_item_stack = inventory.held_item_stack_mut();
 
                     if let Some((block_id, replaced_block_position)) = block_placement(
@@ -816,7 +811,9 @@ fn handle_right_clicks(
                         &world_map,
                     ) {
                         let block_config = blocks.get_config(&block_id);
-                        let block_state = block_config.placement_rotation(*block_face, camera);
+                        let block_state = block_config
+                            .placement
+                            .placement_rotation(*block_face, camera);
 
                         let chunk_position = ChunkPosition::from(replaced_block_position);
 
@@ -925,7 +922,11 @@ fn block_placement(
         return None;
     };
 
-    if !blocks.get_config(&new_block_id).is_placeable(block_face) {
+    if !blocks
+        .get_config(&new_block_id)
+        .placement
+        .is_placeable(block_face)
+    {
         return None;
     }
 

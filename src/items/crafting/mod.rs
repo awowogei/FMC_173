@@ -1,10 +1,12 @@
 use fmc::{
-    items::{ItemId, ItemStack, Items},
+    items::{ItemId, ItemStack},
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
 
 use std::collections::HashMap;
+
+use crate::items::Items;
 
 mod shaped;
 
@@ -96,7 +98,7 @@ fn load_recipes(mut commands: Commands, items: Res<Items>) {
 
                     let recipe = shaped::Recipe {
                         required_amount,
-                        output: ItemStack::new(output_config, recipe_json.output_amount),
+                        output: ItemStack::new(output_config.id, recipe_json.output_amount),
                     };
 
                     recipes

@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
+    blocks::BlockPosition,
     database::Database,
-    items::{DropTable, Items},
+    items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, Models},
     networking::Server,
@@ -20,7 +20,7 @@ use fmc::{
 };
 
 use crate::{
-    items::spawn_crates::MobCrates,
+    items::{Items, spawn_crates::MobCrates},
     players::{GameMode, HandHits},
 };
 

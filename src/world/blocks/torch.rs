@@ -1,12 +1,11 @@
 use fmc::{
-    blocks::{BlockRotation, Blocks},
-    items::{Item, ItemStack, Items},
+    blocks::BlockRotation,
     math::DVec3,
     prelude::*,
-    random::Rng,
     world::{BlockUpdate, ChangedBlockEvent},
 };
 
+use super::Blocks;
 use crate::items::DroppedItem;
 
 pub struct TorchPlugin;
@@ -22,10 +21,9 @@ impl Plugin for TorchPlugin {
 // Make the torch break if the block it is connected to is removed.
 fn fragile_break(
     mut commands: Commands,
-    items: Res<Items>,
+    blocks: Res<Blocks>,
     mut changed_blocks: MessageReader<ChangedBlockEvent>,
     mut block_updates: MessageWriter<BlockUpdate>,
-    mut rng: Local<Rng>,
 ) {
     for changed_block in changed_blocks.read() {
         for (offset, block_rotation) in [
@@ -39,7 +37,7 @@ fn fragile_break(
                 continue;
             };
 
-            let torch_id = Blocks::get().get_id("torch");
+            let torch_id = blocks.get_id("torch");
             if block_id != torch_id {
                 continue;
             }
@@ -49,18 +47,15 @@ fn fragile_break(
                     let position = changed_block.position + offset;
                     block_updates.write(BlockUpdate::Replace {
                         position,
-                        block_id: Blocks::get().get_id("air"),
+                        block_id: blocks.get_id("air"),
                         block_state: None,
                         block_data: None,
                     });
 
-                    let block_config = Blocks::get().get_config(&torch_id);
-                    let Some(dropped_item_id) = block_config.drop(None) else {
+                    let block_config = blocks.get_config(&torch_id);
+                    let Some(item_stack) = block_config.drop(None) else {
                         continue;
                     };
-
-                    let item_config = items.get_config(&dropped_item_id);
-                    let item_stack = ItemStack::new(item_config, 1);
 
                     commands.spawn((
                         DroppedItem::new(item_stack),

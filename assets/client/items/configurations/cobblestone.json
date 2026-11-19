@@ -2,6 +2,6 @@
     "name": "Cobblestone",
     "image": "cobblestone.png",
     "block": "cobblestone",
-    "equip_model": "cobblestone",
+    "model": "cobblestone",
     "stack_size": 64
 }

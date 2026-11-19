@@ -1,13 +1,15 @@
 use std::collections::{BinaryHeap, HashMap};
 
 use fmc::{
-    blocks::{BlockPosition, Blocks},
+    blocks::BlockPosition,
     math::{DVec2, DVec3},
     prelude::*,
     world::WorldMap,
 };
 use indexmap::{IndexMap, map::Entry};
 use smallvec::SmallVec;
+
+use crate::world::blocks::Blocks;
 
 #[derive(Component)]
 pub struct PathFinder {
@@ -47,7 +49,7 @@ impl PathFinder {
         }
     }
 
-    pub fn find_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
+    pub fn find_path(&mut self, world_map: &WorldMap, blocks: &Blocks, start: DVec3, goal: DVec3) {
         // Even width npcs walk the edges of the blocks while odd width npcs walk the center of blocks.
         let mut block_start = if self.width % 2 == 0 {
             BlockPosition::from(DVec3::new(start.x.round(), start.y, start.z.round()))
@@ -71,7 +73,7 @@ impl PathFinder {
 
         // Direct paths feel much better, so we always try to find one before fallback to grid
         // based pathfinding.
-        self.find_direct_path(world_map, start, goal);
+        self.find_direct_path(world_map, blocks, start, goal);
         if !self.path.is_empty() {
             return;
         }
@@ -117,7 +119,7 @@ impl PathFinder {
                 continue;
             }
 
-            for potential in self.get_potential_successors(node_position, world_map) {
+            for potential in self.get_potential_successors(node_position, world_map, blocks) {
                 let cost =
                     successor.movement_cost + potential.movement_cost + potential.heuristic_cost;
                 let node_index;
@@ -159,7 +161,13 @@ impl PathFinder {
 
     // Try to find a straight path that leads directly to the goal. Will fail if there's any type
     // of obstruction.
-    fn find_direct_path(&mut self, world_map: &WorldMap, start: DVec3, goal: DVec3) {
+    fn find_direct_path(
+        &mut self,
+        world_map: &WorldMap,
+        blocks: &Blocks,
+        start: DVec3,
+        goal: DVec3,
+    ) {
         let forward = (goal - start).normalize().xz();
         let direction = forward.signum();
 
@@ -200,11 +208,11 @@ impl PathFinder {
                 return;
             }
 
-            let above_cost = self.get_movement_cost(world_map, block_position + IVec3::Y);
-            let cost = self.get_movement_cost(world_map, block_position);
-            let below_cost = self.get_movement_cost(world_map, block_position - IVec3::Y);
+            let above_cost = self.get_movement_cost(world_map, blocks, block_position + IVec3::Y);
+            let cost = self.get_movement_cost(world_map, blocks, block_position);
+            let below_cost = self.get_movement_cost(world_map, blocks, block_position - IVec3::Y);
             let second_below_cost =
-                self.get_movement_cost(world_map, block_position - IVec3::Y * 2);
+                self.get_movement_cost(world_map, blocks, block_position - IVec3::Y * 2);
 
             if above_cost.is_none() {
                 // If there's a block at head height, fail
@@ -247,14 +255,19 @@ impl PathFinder {
         self.previous_node
     }
 
-    fn get_movement_cost(&mut self, world_map: &WorldMap, position: BlockPosition) -> Option<f32> {
+    fn get_movement_cost(
+        &mut self,
+        world_map: &WorldMap,
+        blocks: &Blocks,
+        position: BlockPosition,
+    ) -> Option<f32> {
         if let Some(cached) = self.movement_cost_cache.get(&position) {
             return *cached;
         }
 
         let compute_cost = |position: BlockPosition| -> Option<f32> {
             if let Some(block_id) = world_map.get_block(position) {
-                let block_config = Blocks::get().get_config(&block_id);
+                let block_config = blocks.get_config(&block_id);
                 if let Some(drag) = block_config.drag() {
                     return Some(drag.max_element() as f32);
                 }
@@ -321,17 +334,22 @@ impl PathFinder {
         &mut self,
         position: &BlockPosition,
         world_map: &WorldMap,
+        blocks: &Blocks,
     ) -> SmallVec<[PotentialSuccessor; 4]> {
         let mut potential_successors = SmallVec::default();
         for offset in [IVec3::X, IVec3::NEG_X, IVec3::Z, IVec3::NEG_Z].iter() {
             let offset_position = *position + *offset;
 
-            if let Some(mut movement_cost) = self.get_movement_cost(world_map, offset_position) {
+            if let Some(mut movement_cost) =
+                self.get_movement_cost(world_map, blocks, offset_position)
+            {
                 // If it can move horizontally, check if and how far it will fall
                 // Hardcoded to only fall a maximum of two blocks
                 for steps in 1..=2 {
                     let below_position = offset_position - IVec3::new(0, steps, 0);
-                    if let Some(below_cost) = self.get_movement_cost(world_map, below_position) {
+                    if let Some(below_cost) =
+                        self.get_movement_cost(world_map, blocks, below_position)
+                    {
                         movement_cost += below_cost;
                     } else {
                         let position = offset_position - IVec3::new(0, steps - 1, 0);
@@ -348,8 +366,11 @@ impl PathFinder {
                 for j in 1..=self.jump_height as i32 {
                     let jump_position = offset_position + IVec3::new(0, j, 0);
                     let above_position = *position + IVec3::new(0, j, 0);
-                    if let Some(movement_cost) = self.get_movement_cost(world_map, jump_position)
-                        && self.get_movement_cost(world_map, above_position).is_some()
+                    if let Some(movement_cost) =
+                        self.get_movement_cost(world_map, blocks, jump_position)
+                        && self
+                            .get_movement_cost(world_map, blocks, above_position)
+                            .is_some()
                     {
                         potential_successors.push(PotentialSuccessor {
                             position: jump_position,

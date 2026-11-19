@@ -2,6 +2,6 @@
     "name": "Glass",
     "image": "glass.png",
     "block": "glass",
-    "equip_model": "glass",
+    "model": "glass",
     "stack_size": 64
 }
