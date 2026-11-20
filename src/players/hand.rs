@@ -339,7 +339,7 @@ fn break_blocks(
                 block_data: None,
             });
 
-            let Some(item_stack) = block_config.drop(tool_config) else {
+            let Some(item_stack) = block_config.drop(tool_config, &mut rng) else {
                 continue;
             };
 

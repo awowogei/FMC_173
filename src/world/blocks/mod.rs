@@ -6,7 +6,10 @@ use fmc::{
         BLOCK_CONFIG_PATH, BLOCK_MATERIAL_PATH, BlockConfigEvent, BlockFace, BlockId,
         BlockPlacement, BlockQuad,
     },
-    items::{ItemId, ItemStack},
+    items::{
+        ItemStack,
+        drop_table::{DropTable, DropTableJson},
+    },
     math::DVec3,
     models::{ModelAssetId, Models},
     physics::{Collider, Friction},
@@ -86,21 +89,30 @@ fn load_blocks(
             ),
         };
 
-        let drop = match json.drop {
-            Some(drop) => {
-                let Some(item) = items.get_id(&drop.item) else {
-                    panic!(
-                        "Failed to read 'drop' field for block '{}' under {}\nError: No item by the name {}",
-                        &event.name, BLOCK_CONFIG_PATH, &drop.item
-                    );
-                };
-                Some(BlockDrop {
-                    requires_tool: drop.requires_tool,
-                    item,
-                })
+        let drop = json.drop.map(|drop| {
+            let table = match &drop.output {
+                BlockDropOutputJson::Item(name) => {
+                    let Some(item) = items.get_id(name) else {
+                        panic!(
+                            "Failed to read 'drop' field for block '{}' under {}\nError: No item by the name {}",
+                            &event.name, BLOCK_CONFIG_PATH, name
+                        );
+                    };
+                    DropTable::new(1.0, &[(item, 1.0, 1, 1)]).unwrap()
+                }
+                BlockDropOutputJson::Table(table_json) => match DropTable::from_json(table_json) {
+                    Ok(t) => t,
+                    Err(e) => panic!(
+                        "Failed to read 'drop' field for block '{}' under {}\nError: {}",
+                        &event.name, BLOCK_CONFIG_PATH, e
+                    ),
+                },
+            };
+            BlockDrop {
+                requires_tool: drop.requires_tool,
+                table,
             }
-            None => None,
-        };
+        });
 
         let particle_textures = if let Some(particle_texture) = json.particle_texture {
             Some(BlockFaceTextures {
@@ -290,24 +302,17 @@ impl BlockConfig {
         matches!(self.friction, Friction::Surface { .. })
     }
 
-    pub fn drop(&self, tool: Option<&ItemConfig>) -> Option<ItemStack> {
-        let Some(block_drop) = &self.drop else {
-            return None;
-        };
+    pub fn drop(&self, tool: Option<&ItemConfig>, rng: &mut Rng) -> Option<ItemStack> {
+        let block_drop = self.drop.as_ref()?;
 
-        if !block_drop.requires_tool {
-            return Some(ItemStack::new(block_drop.item, 1));
-        }
-
-        if let Some(item) = tool {
-            if let Some(tool) = &item.tool {
-                if self.tools.contains(&tool.name) {
-                    return Some(ItemStack::new(block_drop.item, 1));
-                }
+        if block_drop.requires_tool {
+            let tool_name = &tool?.tool.as_ref()?.name;
+            if !self.tools.contains(tool_name) {
+                return None;
             }
         }
 
-        return None;
+        block_drop.table.drop(rng)
     }
 
     pub fn particle_texture(&self, block_face: BlockFace) -> Option<&str> {
@@ -357,12 +362,20 @@ struct BlockConfigJson {
 struct BlockDropJson {
     #[serde(default)]
     requires_tool: bool,
-    item: String,
+    #[serde(flatten)]
+    output: BlockDropOutputJson,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum BlockDropOutputJson {
+    Item(String),
+    Table(DropTableJson),
 }
 
 struct BlockDrop {
     requires_tool: bool,
-    item: ItemId,
+    table: DropTable,
 }
 
 // Paths to textures used by a cube, relative to /textures/
