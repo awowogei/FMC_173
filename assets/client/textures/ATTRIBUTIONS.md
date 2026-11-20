@@ -3,6 +3,8 @@ LICENSED UNDER [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 * Cow model and texture
 * Skeleton model and texture
 * Feather texture
+* Flint texture
+* Flint and steel texture
 * Gravel texture
 
 [Leather Works](https://github.com/MinecraftModDevelopmentMods/LeatherWorks) by [cleverpanda714](https://www.curseforge.com/members/cleverpanda714/projects)

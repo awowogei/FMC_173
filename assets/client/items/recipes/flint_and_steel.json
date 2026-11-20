@@ -1,0 +1,9 @@
+[
+    {
+        "collection_name": "crafting",
+        "pattern_type": "unshaped",
+        "pattern": [["flint", 1], ["iron_ingot", 1]],
+        "output_item": "flint_and_steel",
+        "output_amount": 1
+    }
+]
