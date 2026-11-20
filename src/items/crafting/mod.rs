@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use crate::items::Items;
 
 mod shaped;
+mod unshaped;
 
 pub struct CraftingPlugin;
 impl Plugin for CraftingPlugin {
@@ -89,7 +90,7 @@ fn load_recipes(mut commands: Commands, items: Res<Items>) {
                     let output_config = match items.get_config_by_name(&recipe_json.output_item) {
                         Some(id) => id,
                         None => panic!(
-                            "Error parsing item recipe pattern at: {}\n Item name '{}'\
+                            "Error parsing item recipe pattern at: {}\n Item name '{}' \
                             is not recognized",
                             file_path.display(),
                             &recipe_json.output_item
@@ -107,6 +108,55 @@ fn load_recipes(mut commands: Commands, items: Res<Items>) {
                         .insert(
                             Pattern::Shaped(shaped::Pattern { inner: pattern }),
                             Recipe::Shaped(recipe),
+                        );
+                }
+                "unshaped" => {
+                    let mut entries: Vec<(ItemId, u32)> = match &recipe_json.pattern {
+                        PatternJson::List(pattern) => pattern
+                            .iter()
+                            .map(|(name, amount)| match items.get_id(name) {
+                                Some(id) => (id, *amount),
+                                None => panic!(
+                                    "Error parsing item recipe pattern at: {}\n\
+                                        Item name '{}' is not recognized",
+                                    file_path.display(),
+                                    name
+                                ),
+                            })
+                            .collect(),
+                        _ => panic!(
+                            r#"Error parsing item recipe pattern at: {}
+'pattern_type' is 'unshaped', but the pattern is not in the form of a list. Should be like:
+[["item", 1], ["item", 1]]"#,
+                            file_path.display()
+                        ),
+                    };
+
+                    entries.sort_by_key(|(id, _)| *id);
+                    let (pattern, required_amount): (Vec<ItemId>, Vec<u32>) =
+                        entries.into_iter().unzip();
+
+                    let output_config = match items.get_config_by_name(&recipe_json.output_item) {
+                        Some(id) => id,
+                        None => panic!(
+                            "Error parsing item recipe pattern at: {}\n Item name '{}' \
+                            is not recognized",
+                            file_path.display(),
+                            &recipe_json.output_item
+                        ),
+                    };
+
+                    let recipe = unshaped::Recipe {
+                        required_amount,
+                        output: ItemStack::new(output_config.id, recipe_json.output_amount),
+                    };
+
+                    recipes
+                        .entry(recipe_json.collection_name)
+                        .or_insert(RecipeCollection::default())
+                        .insert(
+                            Pattern::Unshaped(unshaped::Pattern { inner: pattern }),
+                            Recipe::Unshaped(recipe),
                         );
                 }
                 _ => (),
@@ -152,19 +202,13 @@ enum PatternJson {
     List(Vec<(String, u32)>),
 }
 
-#[derive(Serialize, Deserialize)]
-enum RequiredJson {
-    Grid(Vec<Vec<u32>>),
-    List(Vec<u32>),
-}
-
 // TODO: Unshaped and Unordered are the same right? merge if
 // All recipe types share the same interface, but differ in the way they handle the input.
 pub enum Recipe {
     /// Square crafting area where the item position matters.
     Shaped(shaped::Recipe),
-    //// Square crafting area where the item position doesn't matter.
-    //Unshaped(UnshapedRecipe),
+    /// Square crafting area where the item position doesn't matter.
+    Unshaped(unshaped::Recipe),
     //// List of crafting items where the order matters
     //Ordered(OrderedRecipe)
     //// List of crafting items where the order doesn't matter
@@ -178,6 +222,7 @@ impl Recipe {
     pub fn craft(&self, input: &mut CraftingGrid, amount: u32) -> Option<ItemStack> {
         return match self {
             Recipe::Shaped(r) => r.craft(input, amount),
+            Recipe::Unshaped(r) => r.craft(input, amount),
         };
     }
 
@@ -185,12 +230,14 @@ impl Recipe {
     fn get_craftable_amount(&self, input: &CraftingGrid) -> u32 {
         return match self {
             Recipe::Shaped(r) => r.get_craftable_amount(input),
+            Recipe::Unshaped(r) => r.get_craftable_amount(input),
         };
     }
 
     pub fn output(&self) -> &ItemStack {
         match self {
             Recipe::Shaped(s) => s.output(),
+            Recipe::Unshaped(s) => s.output(),
         }
     }
 }
@@ -198,6 +245,7 @@ impl Recipe {
 #[derive(Hash, PartialEq, Eq)]
 enum Pattern {
     Shaped(shaped::Pattern),
+    Unshaped(unshaped::Pattern),
 }
 
 // TODO: I dislike the return types, 'craft' should have proper type, and 'check_output' should not
@@ -207,64 +255,46 @@ enum Pattern {
 /// that are used by a furnace.
 #[derive(Default)]
 pub struct RecipeCollection {
-    shaped: bool,
     recipes: HashMap<Pattern, Recipe>,
 }
 
 impl RecipeCollection {
     fn insert(&mut self, pattern: Pattern, recipe: Recipe) {
-        match pattern {
-            Pattern::Shaped(_) => {
-                self.shaped = true;
-                self.recipes.insert(pattern, recipe);
-            }
-        }
+        self.recipes.insert(pattern, recipe);
     }
 
     pub fn craft(&self, input: &mut CraftingGrid, amount: u32) -> Option<ItemStack> {
-        if self.shaped {
-            let pattern = Pattern::Shaped(shaped::Pattern::from(input.as_slice()));
-            let Some(recipe) = self.recipes.get(&pattern) else {
-                return None;
-            };
-            return recipe.craft(input, amount);
-        } else {
-            todo!()
-        }
+        let recipe = self.get_recipe(input)?;
+        return recipe.craft(input, amount);
     }
 
     /// Check what item can be crafted. The returned item stack uses its 'size' field to store the
     /// max amount of items that can be crafted, and its capacity to store how many items are
     /// crafted at once.
     pub fn get_output(&self, input: &CraftingGrid) -> Option<ItemStack> {
-        if self.shaped {
-            let pattern = Pattern::Shaped(shaped::Pattern::from(input.as_slice()));
-            let Some(recipe) = self.recipes.get(&pattern) else {
-                return None;
-            };
+        let recipe = self.get_recipe(input)?;
 
-            let max_craft = recipe.get_craftable_amount(input);
-            if max_craft == 0 {
-                return None;
-            }
-
-            let mut item_stack = recipe.output().clone();
-            item_stack
-                .set_size(max_craft)
-                .set_capacity(recipe.output().size());
-
-            return Some(item_stack);
-        } else {
-            todo!()
+        let max_craft = recipe.get_craftable_amount(input);
+        if max_craft == 0 {
+            return None;
         }
+
+        let mut item_stack = recipe.output().clone();
+        item_stack
+            .set_size(max_craft)
+            .set_capacity(recipe.output().size());
+
+        return Some(item_stack);
     }
 
     pub fn get_recipe(&self, input: &CraftingGrid) -> Option<&Recipe> {
-        if self.shaped {
-            let pattern = Pattern::Shaped(shaped::Pattern::from(input.as_slice()));
-            return self.recipes.get(&pattern);
+        let shaped = Pattern::Shaped(shaped::Pattern::from(input.as_slice()));
+        if let Some(recipe) = self.recipes.get(&shaped) {
+            return Some(recipe);
         }
-        return None;
+
+        let unshaped = Pattern::Unshaped(unshaped::Pattern::from(input.as_slice()));
+        return self.recipes.get(&unshaped);
     }
 }
 
