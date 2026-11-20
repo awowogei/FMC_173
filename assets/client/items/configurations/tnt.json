@@ -1,0 +1,7 @@
+{
+    "name": "TNT",
+    "image": "tnt.png",
+    "block": "tnt",
+    "model": "tnt",
+    "stack_size": 64
+}

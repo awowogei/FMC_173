@@ -16,6 +16,7 @@ mod dropped_items;
 pub mod arrows;
 pub mod bread;
 pub mod bucket;
+pub mod flint_and_steel;
 pub mod hoes;
 pub mod seeds;
 pub mod spawn_crates;
@@ -32,6 +33,7 @@ impl Plugin for ItemPlugin {
             .add_plugins(hoes::HoePlugin)
             .add_plugins(bread::BreadPlugin)
             .add_plugins(bucket::BucketPlugin)
+            .add_plugins(flint_and_steel::FlintAndSteelPlugin)
             .add_plugins(spawn_crates::CratePlugin)
             .add_plugins(arrows::ArrowPlugin)
             .add_plugins(seeds::SeedPlugin);

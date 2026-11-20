@@ -9,7 +9,7 @@ use fmc::{
     world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 
-use crate::world::blocks::Blocks;
+use crate::world::blocks::{Blocks, tnt::TntIgnition};
 
 pub struct ExplosionsPlugin;
 impl Plugin for ExplosionsPlugin {
@@ -85,6 +85,7 @@ fn explode(
     world_map: Res<WorldMap>,
     mut explosion_events: MessageReader<ExplosionEvent>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
+    mut ignite_writer: MessageWriter<TntIgnition>,
     mut rng: Local<Rng>,
     mut offsets: Local<Vec<IVec3>>,
     mut path_resistance: Local<Vec<f32>>,
@@ -108,6 +109,7 @@ fn explode(
     }
 
     let air = blocks.get_id("air");
+    let tnt = blocks.get_id("tnt");
 
     for explosion in explosion_events.read() {
         let power = explosion.power.clamp(0.0, MAX_POWER);
@@ -170,7 +172,13 @@ fn explode(
             let to_block = offset.as_vec3() + center_offset;
             let strength = directional_strength.apply(power, to_block) - to_block.length();
 
-            if block_id != air {
+            if block_id == tnt {
+                ignite_writer.write(TntIgnition {
+                    position,
+                    velocity: to_block.normalize_or_zero() * strength.max(0.0) * 10.0,
+                    fuse: 0.5 + rng.next_f32(),
+                });
+            } else if block_id != air {
                 let jitter = (rng.next_f32() * 2.0 - 1.0) * EDGE_JITTER;
                 let breaks = strength
                     - (previous + cost * BREAKING_FRACTION) * staircase_correction

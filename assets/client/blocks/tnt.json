@@ -1,0 +1,38 @@
+{
+    "parent": "default_block.json",
+    "name": "tnt",
+    "faces": {
+        "top": "tnt_top.png",
+        "bottom": "tnt_bottom.png",
+        "left": "tnt_side.png",
+        "right": "tnt_side.png",
+        "front": "tnt_side.png",
+        "back": "tnt_side.png"
+    },
+    "hardness": 0,
+    "blast_resistance": 0,
+    "drop": {
+        "requires_tool": false,
+        "item": "tnt"
+    },
+    "sound": {
+        "place": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ],
+        "step": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ],
+        "destroy": [
+            "grass_1.ogg",
+            "grass_2.ogg",
+            "grass_3.ogg",
+            "grass_4.ogg"
+        ]
+    }
+}

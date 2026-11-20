@@ -24,6 +24,7 @@ mod chest;
 mod crafting_table;
 mod door;
 mod furnace;
+pub mod tnt;
 mod torch;
 pub mod water;
 mod wheat;
@@ -44,6 +45,7 @@ impl Plugin for BlocksPlugin {
         .add_plugins(torch::TorchPlugin)
         .add_plugins(water::WaterPlugin)
         .add_plugins(door::DoorPlugin)
+        .add_plugins(tnt::TntPlugin)
         .add_plugins(wheat::WheatPlugin);
     }
 }
