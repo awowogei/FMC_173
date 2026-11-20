@@ -4,7 +4,7 @@ use json::buffer::Stride;
 
 use std::borrow::Cow;
 use std::mem;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use json::validation::Checked::Valid;
@@ -72,6 +72,8 @@ struct Cli {
     /// File to operate on
     #[clap(value_parser)]
     file_path: PathBuf,
+    #[clap(long, help = "Model to copy the animations from")]
+    animations: Option<PathBuf>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -107,19 +109,17 @@ fn align_to_multiple_of_four(n: &mut u32) {
     *n = (*n + 3) & !3;
 }
 
-fn to_padded_byte_vector<T>(vec: Vec<T>) -> Vec<u8> {
-    let byte_length = vec.len() * mem::size_of::<T>();
-    let byte_capacity = vec.capacity() * mem::size_of::<T>();
-    let alloc = vec.into_boxed_slice();
-    let ptr = Box::<[T]>::into_raw(alloc) as *mut u8;
-    let mut new_vec = unsafe { Vec::from_raw_parts(ptr, byte_length, byte_capacity) };
-    while new_vec.len() % 4 != 0 {
-        new_vec.push(0); // pad to multiple of four bytes
+fn vertices_to_bytes(vertices: &[Vertex]) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(vertices.len() * mem::size_of::<Vertex>());
+    for vertex in vertices {
+        for value in vertex.position.iter().chain(vertex.color.iter()) {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
     }
-    new_vec
+    bytes
 }
 
-fn convert(image: &Rgba32FImage) -> gltf::binary::Glb {
+fn convert(image: &Rgba32FImage) -> (json::Root, Vec<u8>) {
     let mut triangle_vertices = Vec::new();
 
     let mut add_face = |x: f32, y: f32, z: f32, vertices: &[[f32; 3]; 6], color: &Rgba<f32>| {
@@ -282,6 +282,90 @@ fn convert(image: &Rgba32FImage) -> gltf::binary::Glb {
         ..Default::default()
     };
 
+    return (root, vertices_to_bytes(&triangle_vertices));
+}
+
+fn copy_accessor(
+    root: &mut json::Root,
+    bin: &mut Vec<u8>,
+    template: &json::Root,
+    template_bin: &[u8],
+    index: json::Index<json::Accessor>,
+) -> json::Index<json::Accessor> {
+    let mut accessor = template.accessors[index.value()].clone();
+    let view = &template.buffer_views[accessor
+        .buffer_view
+        .expect("template accessor has no buffer view")
+        .value()];
+
+    let element_size = match (&accessor.component_type, &accessor.type_) {
+        (Valid(component_type), Valid(type_)) => component_type.0.size() * type_.multiplicity(),
+        _ => panic!("template has an invalid accessor"),
+    };
+    let start = view.byte_offset.map_or(0, |offset| offset.0) as usize
+        + accessor.byte_offset.map_or(0, |offset| offset.0) as usize;
+    let length = element_size * accessor.count.0 as usize;
+
+    let byte_offset = bin.len();
+    bin.extend_from_slice(&template_bin[start..start + length]);
+    while bin.len() % 4 != 0 {
+        bin.push(0);
+    }
+
+    root.buffer_views.push(json::buffer::View {
+        buffer: json::Index::new(0),
+        byte_length: length.into(),
+        byte_offset: Some(byte_offset.into()),
+        byte_stride: None,
+        extensions: Default::default(),
+        extras: Default::default(),
+        name: None,
+        target: None,
+    });
+
+    accessor.buffer_view = Some(json::Index::new(root.buffer_views.len() as u32 - 1));
+    accessor.byte_offset = None;
+    root.accessors.push(accessor);
+
+    return json::Index::new(root.accessors.len() as u32 - 1);
+}
+
+fn copy_animations(root: &mut json::Root, bin: &mut Vec<u8>, template_path: &Path) {
+    let template_bytes = std::fs::read(template_path).expect("I/O error");
+    let template_glb =
+        gltf::binary::Glb::from_slice(&template_bytes).expect("template is not a valid glb");
+    let template = json::Root::from_slice(&template_glb.json).expect("template has invalid json");
+    let template_bin = template_glb.bin.expect("template has no binary chunk");
+
+    for template_animation in &template.animations {
+        let mut animation = template_animation.clone();
+
+        for sampler in &mut animation.samplers {
+            sampler.input = copy_accessor(root, bin, &template, &template_bin, sampler.input);
+            sampler.output = copy_accessor(root, bin, &template, &template_bin, sampler.output);
+        }
+
+        for channel in &mut animation.channels {
+            channel.target.node = json::Index::new(0);
+        }
+
+        root.animations.push(animation);
+    }
+
+    root.buffers[0].byte_length = bin.len().into();
+}
+
+fn main() {
+    let mut cli = Cli::parse();
+
+    let image = image::open(&cli.file_path).expect("I/O error").to_rgba32f();
+
+    let (mut root, mut bin) = convert(&image);
+
+    if let Some(template_path) = &cli.animations {
+        copy_animations(&mut root, &mut bin, template_path);
+    }
+
     let json_string = json::serialize::to_string(&root).expect("Serialization error");
     let mut json_offset = json_string.len() as u32;
 
@@ -291,23 +375,13 @@ fn convert(image: &Rgba32FImage) -> gltf::binary::Glb {
         header: gltf::binary::Header {
             magic: *b"glTF",
             version: 2,
-            length: json_offset + buffer_length as u32,
+            length: json_offset + bin.len() as u32,
         },
-        bin: Some(Cow::Owned(to_padded_byte_vector(triangle_vertices))),
+        bin: Some(Cow::Owned(bin)),
         json: Cow::Owned(json_string.into_bytes()),
     };
 
-    return glb;
-}
-
-fn main() {
-    let mut cli = Cli::parse();
-
-    let image = image::open(&cli.file_path).expect("I/O error").to_rgba32f();
-
-    let converted = convert(&image);
-
     cli.file_path.set_extension("glb");
     let file = std::fs::File::create(&cli.file_path).expect("I/O error");
-    converted.to_writer(file).expect("glTF binary output error");
+    glb.to_writer(file).expect("glTF binary output error");
 }
