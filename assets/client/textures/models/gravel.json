@@ -1,0 +1,11 @@
+{
+    "block": {
+        "top": "gravel.png",
+        "bottom": "gravel.png",
+        "left": "gravel.png",
+        "right": "gravel.png",
+        "front": "gravel.png",
+        "back": "gravel.png",
+        "material": "opaque_block"
+    }
+}

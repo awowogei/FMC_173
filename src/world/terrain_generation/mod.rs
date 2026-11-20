@@ -21,6 +21,7 @@ pub struct Earth {
     terrain_height: Noise,
     terrain_shape: Noise,
     caves: Noise,
+    gravel: Noise,
     seed: u64,
     air: BlockId,
     grass: BlockId,
@@ -94,7 +95,7 @@ impl Earth {
         .seed(rng.next_u32())
         .fbm(4, 0.5, 2.0)
         .abs()
-        // Only really interested in the high and low values, in-between should quickly transition.
+        // Only interested in the high and low values, in-between should quickly transition.
         .mul(Noise::constant(120.0))
         // sea
         .add(Noise::constant(-12.0))
@@ -182,12 +183,21 @@ impl Earth {
         .square();
         let caves = cave_main_3.add(cave_main_4).min(caves);
 
+        let gravel = Noise::perlin(Frequency {
+            x: 0.03,
+            y: 0.0,
+            z: 0.03,
+        })
+        .seed(rng.next_u32())
+        .fbm(3, 0.5, 2.0);
+
         Self {
             biomes: biomes::Biomes::load(blocks),
             continents,
             terrain_height,
             terrain_shape,
             caves,
+            gravel,
             seed,
             air: blocks.get_id("air"),
             grass: blocks.get_id("grass"),
@@ -245,6 +255,13 @@ impl Earth {
 
         self.carve_caves(chunk_position, &continent_height, &mut terrain_shape);
 
+        let (gravel_noise, _, _) = self.gravel.generate_2d(
+            chunk_position.x as f32,
+            chunk_position.z as f32,
+            Chunk::SIZE,
+            Chunk::SIZE,
+        );
+
         chunk.blocks = vec![0; Chunk::SIZE.pow(3)];
 
         let biome = self.biomes.get_biome();
@@ -299,7 +316,11 @@ impl Earth {
                         && continent_height <= 2.0
                     {
                         layer += 1;
-                        biome.sand
+                        if gravel_noise[x * Chunk::SIZE + z] < -0.3 {
+                            biome.gravel
+                        } else {
+                            biome.sand
+                        }
                     } else {
                         let block = if layer < 1 && block_height >= 0 {
                             biome.top_layer_block

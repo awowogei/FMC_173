@@ -1,0 +1,6 @@
+{
+    "name": "Flint",
+    "image": "flint.png",
+    "model": "flint",
+    "stack_size": 64
+}

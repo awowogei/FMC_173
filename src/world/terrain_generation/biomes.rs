@@ -13,6 +13,7 @@ pub struct Biome {
     pub sub_surface_liquid: BlockId,
     pub air: BlockId,
     pub sand: BlockId,
+    pub gravel: BlockId,
     pub blueprints: Vec<Blueprint>,
 }
 
@@ -24,6 +25,7 @@ struct BiomeJson {
     sub_surface_liquid: String,
     air: String,
     sand: String,
+    gravel: String,
     blueprints: Vec<String>,
 }
 
@@ -46,6 +48,7 @@ impl Biomes {
             sub_surface_liquid: "ocean_bottom".to_owned(),
             air: "air".to_owned(),
             sand: "sand".to_owned(),
+            gravel: "gravel".to_owned(),
             blueprints: vec![
                 "oak".to_owned(),
                 "birch".to_owned(),
@@ -90,6 +93,7 @@ impl Biomes {
         validate_block(&biome_name, &base_biome.sub_surface_liquid, blocks);
         validate_block(&biome_name, &base_biome.air, blocks);
         validate_block(&biome_name, &base_biome.sand, blocks);
+        validate_block(&biome_name, &base_biome.gravel, blocks);
 
         let blueprints = load_blueprints(blocks);
         for blueprint_name in base_biome.blueprints.iter() {
@@ -104,6 +108,7 @@ impl Biomes {
             sub_surface_liquid: blocks.get_id(&base_biome.sub_surface_liquid),
             air: blocks.get_id(&base_biome.air),
             sand: blocks.get_id(&base_biome.sand),
+            gravel: blocks.get_id(&base_biome.gravel),
             blueprints: base_biome
                 .blueprints
                 .iter()

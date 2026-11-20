@@ -1,0 +1,7 @@
+{
+    "name": "Gravel",
+    "image": "gravel.png",
+    "block": "gravel",
+    "model": "gravel",
+    "stack_size": 64
+}

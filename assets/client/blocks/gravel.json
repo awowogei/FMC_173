@@ -1,0 +1,46 @@
+{
+    "parent": "default_block.json",
+    "name": "gravel",
+    "faces": {
+        "top": "gravel.png",
+        "bottom": "gravel.png",
+        "left": "gravel.png",
+        "right": "gravel.png",
+        "front": "gravel.png",
+        "back": "gravel.png"
+    },
+    "tools": ["shovel"],
+    "drop": {
+        "requires_tool": false,
+        "table": {
+            "probability": 1.0,
+            "weights": [0.3, 0.7],
+            "drops": [
+                { "item_name": "flint", "min": 1, "max": 1 },
+                { "item_name": "gravel", "min": 1, "max": 1 }
+            ]
+        }
+    },
+    "sound": {
+        "place": [
+            "gravel_1.ogg",
+            "gravel_2.ogg",
+            "gravel_3.ogg"
+        ],
+        "step": [
+            "gravel_1.ogg",
+            "gravel_2.ogg",
+            "gravel_3.ogg"
+        ],
+        "hit": [
+            "gravel_1.ogg",
+            "gravel_2.ogg",
+            "gravel_3.ogg"
+        ],
+        "destroy": [
+            "gravel_1.ogg",
+            "gravel_2.ogg",
+            "gravel_3.ogg"
+        ]
+    }
+}
