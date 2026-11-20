@@ -4,6 +4,7 @@
     "name": "wheat_0",
     "material": "transparent",
     "hardness": 0,
+    "blast_resistance": 0,
     "light_attenuation": 1,
     "hitbox": {
         "min": [0, 0, 0],

@@ -1,5 +1,6 @@
 {
     "parent": "default_block.json",
+    "blast_resistance": 0.2,
     "name": "glass",
     "faces": {
         "top": "glass.png",

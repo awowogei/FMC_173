@@ -254,6 +254,7 @@ parent = {
     "friction": friction,
     "fog": fog,
     "replaceable": True,
+    "blast_resistance": 100.0,
     "placement": {
         "floor": True,
         "ceiling": True,

@@ -1,5 +1,6 @@
 {
     "parent": "default_block.json",
+    "blast_resistance": 2.0,
     "name": "furnace",
     "faces": {
         "top": "furnace_top.png",

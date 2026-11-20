@@ -11,6 +11,7 @@
     },
     "tools": ["pickaxe"],
     "hardness": 9,
+    "blast_resistance": 2.0,
     "drop": {
         "requires_tool": true,
         "item": "coal_ore"

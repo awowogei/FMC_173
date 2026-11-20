@@ -150,6 +150,7 @@ fn load_blocks(
             quads: json.quads,
             placement: json.placement,
             hardness: json.hardness,
+            blast_resistance: json.blast_resistance.unwrap_or(1.0),
             tools: json.tools,
             drop,
             sound: json.sound,
@@ -267,6 +268,8 @@ pub struct BlockConfig {
     /// How long it takes to break the block without a tool in seconds, None if the block should
     /// not be breakable. e.g. water, air
     pub hardness: Option<f32>,
+    /// The block's resistance against explosions
+    pub blast_resistance: f32,
     // Which tool categories will break this block faster.
     pub tools: HashSet<String>,
     // Which item(s) the block drops.
@@ -340,6 +343,7 @@ struct BlockConfigJson {
     #[serde(default)]
     placement: BlockPlacement,
     hardness: Option<f32>,
+    blast_resistance: Option<f32>,
     #[serde(default)]
     tools: HashSet<String>,
     drop: Option<BlockDropJson>,

@@ -4,6 +4,7 @@
     "name": "wheat_7",
     "material": "transparent",
     "hardness": 0,
+    "blast_resistance": 0,
     "drop": {
         "item": "wheat"
     },

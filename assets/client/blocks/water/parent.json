@@ -19,6 +19,7 @@
         "stop": 100
     },
     "replaceable": true,
+    "blast_resistance": 100.0,
     "placement": {
         "floor": true,
         "ceiling": true,

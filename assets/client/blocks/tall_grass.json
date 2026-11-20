@@ -5,6 +5,7 @@
     "material": "transparent",
     "particle_texture": "blocks/grass_top.png",
     "hardness": 0,
+    "blast_resistance": 0,
     "light_attenuation": 0,
     "hitbox": {
         "min": [

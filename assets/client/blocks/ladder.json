@@ -11,6 +11,7 @@
         "rotatable": true
     },
     "hardness": 0.3,
+    "blast_resistance": 0,
     "friction": [0.99, 0.49, 0.99],
     "hitbox": [
         {

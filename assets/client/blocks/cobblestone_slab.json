@@ -8,6 +8,7 @@
     },
     "tools": ["pickaxe"],
     "hardness": 6,
+    "blast_resistance": 2.0,
     "drop": {
         "requires_tool": true,
         "item": "cobblestone_slab"

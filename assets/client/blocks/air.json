@@ -1,5 +1,6 @@
 {
     "parent": "default_non_solid_block.json",
+    "blast_resistance": 0,
     "type": "cube",
     "name": "air",
     "material": "transparent",

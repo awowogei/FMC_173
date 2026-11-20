@@ -15,6 +15,7 @@
         "item": "iron_ore"
     },
     "hardness": 12,
+    "blast_resistance": 2.0,
     "sound": {
         "place": [
             "stone_1.ogg",
