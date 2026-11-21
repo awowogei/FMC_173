@@ -201,7 +201,7 @@ fn item_pickup(
                 // First try to fill item stacks that already have the item
                 for item_stack in player_inventory.iter_mut() {
                     if item_stack.item() == dropped_item.stack.item() {
-                        dropped_item.stack.transfer_to(item_stack, u32::MAX);
+                        dropped_item.stack.put(item_stack, u32::MAX);
                     }
 
                     if dropped_item.stack.is_empty() {
@@ -217,7 +217,7 @@ fn item_pickup(
                 // Then go again and fill empty spots
                 for item_stack in player_inventory.iter_mut() {
                     if item_stack.is_empty() {
-                        dropped_item.stack.transfer_to(item_stack, u32::MAX);
+                        dropped_item.stack.put(item_stack, u32::MAX);
                     }
 
                     if dropped_item.stack.is_empty() {

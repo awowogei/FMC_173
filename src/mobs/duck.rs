@@ -315,7 +315,7 @@ fn handle_interactions(
                 continue;
             }
 
-            item_stack.take(1);
+            item_stack.pop();
         }
     }
 }

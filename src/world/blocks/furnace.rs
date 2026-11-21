@@ -68,11 +68,14 @@ impl Furnace {
     }
 
     fn cold_start(&mut self, items: &Items, recipes: &Recipes) -> bool {
-        if recipes
+        let can_smelt = recipes
             .get("smelting")
-            .get_output(&mut self.crucible)
-            .is_some()
-        {
+            .get_output(&self.crucible)
+            .is_some_and(|output| {
+                self.output.is_empty() || self.output.item() == Some(output.item())
+            });
+
+        if can_smelt {
             self.progress.get_or_insert(0.0);
         } else {
             self.progress = None;
@@ -83,7 +86,7 @@ impl Furnace {
             if let Some(item) = self.fuel.item() {
                 let config = items.get_config(&item.id);
                 if let Some(fuel) = config.fuel {
-                    self.fuel.take(1);
+                    self.fuel.pop();
                     self.heat = fuel;
                     self.heat_max = fuel;
                     return true;
@@ -269,10 +272,10 @@ fn furnace(
 
             if progress >= SMELT_TIME {
                 let smelting = recipes.get("smelting");
-                if let Some(mut output) = smelting.craft(&mut furnace.crucible, 1) {
-                    output.transfer_to(&mut furnace.output, u32::MAX);
+                if let Some(output) = smelting.craft(&mut furnace.crucible, 1) {
                     // Furnaces can store an unlimited amount of items in its output
-                    furnace.output.set_capacity(u32::MAX);
+                    let size = furnace.output.size() + output.size();
+                    furnace.output = ItemStack::new(output.item().unwrap().id, size);
                 }
 
                 furnace.progress = None;
@@ -307,11 +310,11 @@ fn handle_interface_events(
             } = &*event
             {
                 if interface_path.ends_with("crucible") {
-                    furnace.crucible[0].transfer_to(&mut held_item, *quantity);
+                    held_item.take(&mut furnace.crucible[0], *quantity);
                 } else if interface_path.ends_with("fuel") {
-                    furnace.fuel.transfer_to(&mut held_item, *quantity);
+                    held_item.take(&mut furnace.fuel, *quantity);
                 } else if interface_path.ends_with("output") {
-                    furnace.output.transfer_to(&mut held_item, *quantity);
+                    held_item.take(&mut furnace.output, *quantity);
                 }
             } else if let messages::InterfaceInteraction::PlaceItem {
                 interface_path,
@@ -320,9 +323,9 @@ fn handle_interface_events(
             } = &*event
             {
                 if interface_path.ends_with("crucible") {
-                    held_item.transfer_to(&mut furnace.crucible[0], *quantity);
+                    held_item.place(&mut furnace.crucible[0], *quantity);
                 } else if interface_path.ends_with("fuel") {
-                    held_item.transfer_to(&mut furnace.fuel, *quantity);
+                    held_item.place(&mut furnace.fuel, *quantity);
                 }
             }
 

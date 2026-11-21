@@ -670,7 +670,7 @@ fn discard_items(
         let (mut held_item, transform, camera) = inventory_query.get_mut(parent.0).unwrap();
         for event in interface_events.read() {
             if let messages::InterfaceInteraction::PlaceItem { quantity, .. } = *event {
-                let discarded = held_item.take(quantity);
+                let discarded = held_item.discard(quantity);
                 if discarded.size() == 0 {
                     continue;
                 }

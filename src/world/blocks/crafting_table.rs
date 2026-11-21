@@ -67,8 +67,8 @@ impl CraftingTable {
             interface_update.add_itembox(
                 "crafting_table/output",
                 0,
-                output.item().unwrap().id,
-                output.capacity(),
+                output.item().id,
+                output.per_craft(),
                 None,
                 None,
             );
@@ -151,7 +151,7 @@ fn handle_interface_events(
                     let Some(item_stack) = crafting_table.get_mut(*index as usize) else {
                         continue;
                     };
-                    item_stack.transfer_to(&mut held_item, *quantity);
+                    held_item.take(item_stack, *quantity);
 
                     crafting_table.build_output_interface(&recipes, &mut interface_update);
                 } else if interface_path.ends_with("output") {
@@ -159,7 +159,7 @@ fn handle_interface_events(
                         continue;
                     };
 
-                    if held_item.is_empty() || held_item.item() == output.item() {
+                    if held_item.is_empty() || held_item.item() == Some(output.item()) {
                         let amount = if held_item.is_empty() {
                             *quantity
                         } else {
@@ -169,7 +169,7 @@ fn handle_interface_events(
                         if let Some(mut item_stack) =
                             recipes.get("crafting").craft(&mut crafting_table, amount)
                         {
-                            item_stack.transfer_to(&mut held_item, u32::MAX);
+                            held_item.take(&mut item_stack, u32::MAX);
                         } else {
                             continue;
                         }
@@ -191,7 +191,7 @@ fn handle_interface_events(
                 let Some(item_stack) = crafting_table.get_mut(*index as usize) else {
                     continue;
                 };
-                held_item.transfer_to(item_stack, *quantity);
+                held_item.place(item_stack, *quantity);
 
                 crafting_table.build_output_interface(&recipes, &mut interface_update);
             }

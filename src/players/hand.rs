@@ -843,7 +843,7 @@ fn handle_right_clicks(
                             }
                         }
 
-                        equipped_item_stack.take(1);
+                        equipped_item_stack.pop();
 
                         if let Some(subscribers) =
                             chunk_subscriptions.get_subscribers(&chunk_position)

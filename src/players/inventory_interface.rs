@@ -296,10 +296,10 @@ fn handle_equipment_events<T: EquipmentNode + Component>(
         for event in events.read() {
             match *event {
                 messages::InterfaceInteraction::TakeItem { quantity, .. } => {
-                    if !held.item_stack.is_empty() {
+                    if !held.is_empty() {
                         continue;
                     }
-                    equipment_item.transfer_to(&mut held, quantity);
+                    held.take(equipment_item, quantity);
                 }
                 messages::InterfaceInteraction::PlaceItem { quantity, .. } => {
                     let Some(item) = held.item() else {
@@ -308,7 +308,7 @@ fn handle_equipment_events<T: EquipmentNode + Component>(
                     if !items.get_config(&item.id).categories.contains(T::NAME) {
                         continue;
                     };
-                    held.transfer_to(equipment_item, quantity);
+                    held.place(equipment_item, quantity);
                 }
                 _ => continue,
             }
@@ -340,8 +340,8 @@ fn handle_crafting_input_events(
                 update.add_itembox(
                     "inventory/crafting_output",
                     0,
-                    output.item().unwrap().id,
-                    output.capacity(),
+                    output.item().id,
+                    output.per_craft(),
                     None,
                     None,
                 );
@@ -377,7 +377,7 @@ fn handle_crafting_output_events(
                 continue;
             };
 
-            if held_item.is_empty() || held_item.item() == output.item() {
+            if held_item.is_empty() || held_item.item() == Some(output.item()) {
                 let amount = if held_item.is_empty() {
                     quantity
                 } else {
@@ -387,7 +387,7 @@ fn handle_crafting_output_events(
                 if let Some(mut item_stack) =
                     recipes.get("crafting").craft(&mut crafting_input, amount)
                 {
-                    item_stack.transfer_to(&mut held_item, u32::MAX);
+                    held_item.take(&mut item_stack, u32::MAX);
                 } else {
                     continue;
                 }
@@ -413,8 +413,8 @@ fn handle_crafting_output_events(
                     crafting_interface.add_itembox(
                         "inventory/crafting_output",
                         0,
-                        output.item().unwrap().id,
-                        output.capacity(),
+                        output.item().id,
+                        output.per_craft(),
                         None,
                         None,
                     );

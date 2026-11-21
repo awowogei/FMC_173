@@ -1,6 +1,5 @@
 use fmc::{
     interfaces::{InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
-    items::ItemStack,
     math::DVec3,
     networking::{NetworkMessage, Server},
     physics::Physics,
@@ -270,8 +269,7 @@ fn change_health(
                 let velocity_z = random_direction.cos() as f64 * 15.0 * rng.next_f32() as f64;
                 let velocity_y = 6.5;
 
-                let mut new_item_stack = ItemStack::default();
-                item_stack.swap(&mut new_item_stack);
+                let new_item_stack = std::mem::take(item_stack);
                 commands.spawn((
                     DroppedItem::new(new_item_stack),
                     transform.clone(),

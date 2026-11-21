@@ -44,6 +44,6 @@ fn eat_bread(
             healing: 8,
         });
 
-        held_item.take(1);
+        held_item.pop();
     }
 }

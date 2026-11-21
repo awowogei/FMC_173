@@ -1,5 +1,5 @@
 use fmc::{
-    items::{ItemId, ItemStack},
+    items::{Item, ItemId, ItemStack},
     prelude::*,
 };
 use serde::{Deserialize, Serialize};
@@ -248,9 +248,25 @@ enum Pattern {
     Unshaped(unshaped::Pattern),
 }
 
-// TODO: I dislike the return types, 'craft' should have proper type, and 'check_output' should not
-// hijack ItemStack. I can't come up with any good names at the moment.
-//
+pub struct CraftingOutput {
+    item_stack: ItemStack,
+    max_craft: u32,
+}
+
+impl CraftingOutput {
+    pub fn item(&self) -> &Item {
+        self.item_stack.item().unwrap()
+    }
+
+    pub fn per_craft(&self) -> u32 {
+        self.item_stack.size()
+    }
+
+    pub fn max_craft(&self) -> u32 {
+        self.max_craft
+    }
+}
+
 /// A subset of recipes. e.g. the recipes that are used by a crafting table, or the recipes
 /// that are used by a furnace.
 #[derive(Default)]
@@ -268,10 +284,8 @@ impl RecipeCollection {
         return recipe.craft(input, amount);
     }
 
-    /// Check what item can be crafted. The returned item stack uses its 'size' field to store the
-    /// max amount of items that can be crafted, and its capacity to store how many items are
-    /// crafted at once.
-    pub fn get_output(&self, input: &CraftingGrid) -> Option<ItemStack> {
+    /// Check what item can be crafted from the input.
+    pub fn get_output(&self, input: &CraftingGrid) -> Option<CraftingOutput> {
         let recipe = self.get_recipe(input)?;
 
         let max_craft = recipe.get_craftable_amount(input);
@@ -279,12 +293,10 @@ impl RecipeCollection {
             return None;
         }
 
-        let mut item_stack = recipe.output().clone();
-        item_stack
-            .set_size(max_craft)
-            .set_capacity(recipe.output().size());
-
-        return Some(item_stack);
+        Some(CraftingOutput {
+            item_stack: recipe.output().clone(),
+            max_craft,
+        })
     }
 
     pub fn get_recipe(&self, input: &CraftingGrid) -> Option<&Recipe> {
