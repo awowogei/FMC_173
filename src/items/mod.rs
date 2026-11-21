@@ -10,6 +10,7 @@ use fmc::{
 };
 use serde::Deserialize;
 
+mod commands;
 pub mod crafting;
 mod dropped_items;
 
@@ -28,6 +29,7 @@ impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ItemRegistry::default())
             .add_systems(PreStartup, load_items.after(AssetSet::Items))
+            .add_plugins(commands::ItemCommandsPlugin)
             .add_plugins(dropped_items::DroppedItemsPlugin)
             .add_plugins(crafting::CraftingPlugin)
             .add_plugins(hoes::HoePlugin)
