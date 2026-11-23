@@ -1,0 +1,13 @@
+[
+    {
+        "collection_name": "crafting",
+        "pattern_type": "shaped",
+        "pattern": [
+            [["gunpowder", 1], ["sand", 1],      ["gunpowder", 1]],
+            [["sand", 1],      ["gunpowder", 1], ["sand", 1]],
+            [["gunpowder", 1], ["sand", 1],      ["gunpowder", 1]]
+        ],
+        "output_item": "tnt",
+        "output_amount": 1
+    }
+]

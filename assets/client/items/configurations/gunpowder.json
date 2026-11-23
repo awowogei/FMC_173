@@ -1,0 +1,6 @@
+{
+    "name": "Gunpowder",
+    "image": "gunpowder.png",
+    "model": "gunpowder",
+    "stack_size": 64
+}

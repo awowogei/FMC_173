@@ -1,5 +1,4 @@
 use fmc::{
-    blocks::BlockPosition,
     items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, ModelColor, Models},
@@ -8,7 +7,7 @@ use fmc::{
     players::Player,
     prelude::*,
     protocol::messages,
-    world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
+    world::WorldMap,
 };
 
 use crate::{
@@ -19,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    Mob, MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target, Wanderer,
+    MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target,
     pathfinding::PathFinder,
 };
 
@@ -38,12 +37,15 @@ struct Creeper {
 
 impl Creeper {
     const EYES: DVec3 = DVec3::new(0.0, 1.65, 0.0);
+    const FUSE_LENGTH: f64 = 1.5;
+    const SWELL: DVec3 = DVec3::new(0.3, 0.15, 0.3);
+    const SWELL_JITTER: DVec3 = DVec3::new(0.02, -0.02, 0.02);
 }
 
 #[derive(Bundle)]
 struct CreeperBundle {
     health: MobHealth,
-    zombie: Creeper,
+    creeper: Creeper,
     physics: Physics,
     path_finder: PathFinder,
     collider: Collider,
@@ -56,17 +58,9 @@ impl Default for CreeperBundle {
     fn default() -> Self {
         Self {
             health: MobHealth::new(20),
-            zombie: Creeper::default(),
+            creeper: Creeper::default(),
             physics: Physics::default(),
             path_finder: PathFinder::new(2, 1, 1),
-            // TODO: This is done because aabbs are rotated during collision detection(blocks that are
-            // rotatable use the same code). If it rotates when it is near a block it will phase because it
-            // is wider in one direction. Unclear what to do about it. Just forcing it out when an
-            // unsolvable collision happens will probably look weird as rotating would mean movement. Solve
-            // for rotation collisions as well? hard.
-            //
-            // Make the zombie square even though its model is not. Also made a little bit smaller so it
-            // will fit into gaps more easily
             collider: Collider::from_min_max(
                 DVec3::new(-0.3, 0.0, -0.3),
                 DVec3::new(0.3, 1.8, 0.3),
@@ -114,11 +108,11 @@ fn setup(
         ..default()
     };
 
-    let feather = items.get_id("feather").unwrap();
+    let gunpowder = items.get_id("gunpowder").unwrap();
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_function),
         sounds: sounds,
-        drop_table: DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap(),
+        drop_table: DropTable::new(1.0, &[(gunpowder, 1.0, 0, 2)]).unwrap(),
     });
 
     random_mobs.add_hostile(1, mob_id);
@@ -133,7 +127,6 @@ fn actions(
     net: Res<Server>,
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
-    models: Res<Models>,
     player_query: Query<&Transform, With<Player>>,
     mut creeper_query: Query<
         (
@@ -165,17 +158,29 @@ fn actions(
             target.set(Some(player_entity));
         }
 
-        let Some(player_entity) = target.get() else {
-            continue;
-        };
+        let mut ignited = false;
 
-        let Ok(player_transform) = player_query.get(player_entity) else {
-            continue;
-        };
-
-        if player_transform.translation.distance(transform.translation) < 3.0
-            && target.in_line_of_sight
+        if !health.is_dead()
+            && let Some(player_entity) = target.get()
+            && let Ok(player_transform) = player_query.get(player_entity)
         {
+            path_finder.find_path(
+                &world_map,
+                &blocks,
+                transform.translation,
+                player_transform.translation,
+            );
+
+            let fuse_distance = if creeper.fuse > 0.0 { 5.0 } else { 3.0 };
+
+            if player_transform.translation.distance(transform.translation) < fuse_distance
+                && target.in_line_of_sight
+            {
+                ignited = true;
+            }
+        }
+
+        if ignited {
             if creeper.fuse == 0.0 {
                 net.broadcast(messages::Sound {
                     position: Some(transform.translation),
@@ -186,36 +191,35 @@ fn actions(
             }
             creeper.fuse += time.delta_secs();
         } else {
-            creeper.fuse -= time.delta_secs();
+            creeper.fuse -= time.delta_secs() * 2.0;
             creeper.fuse = creeper.fuse.max(0.0);
         }
 
-        if creeper.fuse >= 1.5 {
+        if creeper.fuse >= Creeper::FUSE_LENGTH as f32 {
             explosion_events.write(ExplosionEvent {
                 position: transform.translation,
                 power: 3.0,
             });
             commands.entity(creeper_entity).despawn();
         } else if creeper.fuse > 0.0 {
-            // Flash while ignited. If it is invincible it means it has been damaged, and is
-            // colored red. This should not overwrite the damage color.
-            if !health.is_invincible() {
-                if creeper.fuse.fract() % 0.5 > 0.25 {
-                    color.set_if_neq(ModelColor::new(2.0, 2.0, 2.0, 1.0));
-                } else {
-                    color.set_if_neq(ModelColor::WHITE);
-                }
+            let fuse_percent = creeper.fuse as f64 / Creeper::FUSE_LENGTH;
+
+            let brightness = if creeper.fuse % 0.3 > 0.15 {
+                1.0 + fuse_percent.powi(2) as f32
+            } else {
+                1.0
+            };
+            color.set("fuse", Vec4::new(brightness, brightness, brightness, 1.0));
+
+            transform.scale = DVec3::ONE
+                + Creeper::SWELL * fuse_percent.powi(2)
+                + Creeper::SWELL_JITTER * fuse_percent * (fuse_percent * 125.0).sin();
+        } else {
+            if transform.scale != DVec3::ONE {
+                transform.scale = DVec3::ONE;
             }
-
-            transform.scale = DVec3::splat(1.0 + creeper.fuse as f64 * 0.1);
+            color.remove("fuse");
         }
-
-        path_finder.find_path(
-            &world_map,
-            &blocks,
-            transform.translation,
-            player_transform.translation,
-        );
     }
 }
 
@@ -225,20 +229,19 @@ const JUMP_VELOCITY: f64 = 9.0;
 
 fn follow_path(
     time: Res<Time>,
-    mut creepers: Query<(
-        &MobHealth,
-        &Target,
-        &mut Creeper,
-        &mut PathFinder,
-        &mut Physics,
-        &mut Transform,
-    )>,
+    mut creepers: Query<
+        (
+            &MobHealth,
+            &Target,
+            &mut PathFinder,
+            &mut Physics,
+            &mut Transform,
+        ),
+        With<Creeper>,
+    >,
 ) {
-    for (health, target, mut creeper, mut path_finder, mut physics, mut transform) in
-        creepers.iter_mut()
-    {
+    for (health, target, mut path_finder, mut physics, mut transform) in creepers.iter_mut() {
         // Death check because mob entities are kept for a little while after death to show a death pose.
-        // Don't move while in line of sight, stand still and shoot
         if health.is_dead() {
             continue;
         }
