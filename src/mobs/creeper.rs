@@ -18,7 +18,7 @@ use crate::{
 };
 
 use super::{
-    MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target,
+    MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target, Wanderer,
     pathfinding::PathFinder,
 };
 
@@ -52,6 +52,7 @@ struct CreeperBundle {
     hits: HandHits,
     target: Target,
     mob_head: MobHead,
+    wanderer: Wanderer,
 }
 
 impl Default for CreeperBundle {
@@ -72,6 +73,7 @@ impl Default for CreeperBundle {
                 std::f32::consts::FRAC_PI_8,
                 std::f32::consts::FRAC_PI_8,
             ),
+            wanderer: Wanderer::new(2.0, 4.0),
         }
     }
 }
@@ -254,11 +256,12 @@ fn follow_path(
         // implemented yet.
         //
         // Stop when close to the player.
-        if target
-            .last_position
-            .xz()
-            .distance_squared(transform.translation.xz())
-            < 1.0
+        if target.get().is_some()
+            && target
+                .last_position
+                .xz()
+                .distance_squared(transform.translation.xz())
+                < 1.0
         {
             continue;
         }
