@@ -70,14 +70,16 @@ fn spawn_model(
 
         let mut aabb = model_config.collider.as_aabb();
 
-        // There are two scales, one scales the model to have a volume and the other scales
-        // it to be some height. We choose whatever makes it smaller.
+        // Items should look roughly the same size regardless of their shape. There are
+        // two scales, one scales the model to have a volume and the other scales its largest
+        // side to a fixed length, so both tall and wide items fit the same box. We choose
+        // whichever makes it smaller.
         const HALF_VOLUME: f64 = 0.15 * 0.15 * 0.15;
         let half_volume = aabb.half_extents.x * aabb.half_extents.y * aabb.half_extents.z;
         let volume_scale = (HALF_VOLUME / half_volume).cbrt();
-        const HALF_HEIGHT: f64 = 0.25;
-        let y_scale = HALF_HEIGHT / aabb.half_extents.y;
-        let scale = volume_scale.min(y_scale);
+        const HALF_SIZE: f64 = 0.25;
+        let size_scale = HALF_SIZE / aabb.half_extents.max_element();
+        let scale = volume_scale.min(size_scale);
 
         transform.scale = DVec3::splat(scale);
         // Moving it down to create some constant spacing between the item and the ground.
