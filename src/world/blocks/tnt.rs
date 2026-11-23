@@ -74,7 +74,6 @@ fn ignite_tnt(
                 fuse: Timer::from_seconds(ignite.fuse, TimerMode::Once),
             },
             Model::Asset(config.model_id),
-            ModelColor::WHITE,
             config.collider.clone(),
             Physics {
                 velocity: ignite.velocity.as_dvec3(),
@@ -117,10 +116,11 @@ fn tick_fuse(
             continue;
         }
 
-        if tnt.fuse.elapsed_secs() % 0.5 > 0.25 {
-            color.set_if_neq(ModelColor::new(2.0, 2.0, 2.0, 1.0));
+        let brightness = if tnt.fuse.elapsed_secs() % 0.5 > 0.25 {
+            2.0
         } else {
-            color.set_if_neq(ModelColor::WHITE);
-        }
+            1.0
+        };
+        color.set("fuse", Vec4::new(brightness, brightness, brightness, 1.0));
     }
 }

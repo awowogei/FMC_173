@@ -67,7 +67,7 @@ impl Plugin for MobsPlugin {
 pub type MobId = usize;
 
 #[derive(Component)]
-#[require(Transform, ModelColor)]
+#[require(Transform)]
 pub struct Mob {
     pub id: MobId,
 }
@@ -545,7 +545,7 @@ fn damage_mobs(
                 commands.entity(mob_entity).despawn();
             }
 
-            *color = ModelColor::new(1.0, 1.0, 1.0, 1.0);
+            color.remove("damage");
         }
     }
 
@@ -588,8 +588,7 @@ fn damage_mobs(
             health.set_invincible(INVINCIBILITY_TIME as f32);
         }
 
-        let damage_red = ModelColor::new(1.0, 0.5, 0.5, 1.0);
-        *color = damage_red;
+        color.set("damage", Vec4::new(1.0, 0.75, 0.75, 1.0));
 
         if health.is_dead() && !config.sounds.death.is_empty() {
             let sound_index = rng.next_usize() % config.sounds.death.len();
@@ -704,7 +703,7 @@ fn look_around(
         mob_query.iter_mut()
     {
         if health.is_dead() {
-            return;
+            continue;
         }
 
         let target = if let Some(target) = head.target {
