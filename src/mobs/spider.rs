@@ -121,7 +121,7 @@ fn setup(
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_function),
         sounds,
-        drop_table: DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap(),
+        drop_tables: vec![DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap()],
     });
 
     random_mobs.add_hostile(1, mob_id);

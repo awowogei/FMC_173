@@ -1,27 +1,23 @@
-use std::collections::HashSet;
-
 use fmc::{
-    blocks::BlockPosition,
     items::drop_table::DropTable,
     math::{DQuat, DVec3},
-    models::{AnimationPlayer, BoneAttachment, Model, Models},
+    models::{AnimationPlayer, Model, Models},
+    networking::Server,
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
-    random::{Rng, UniformDistribution},
-    visibility::Visibility,
+    protocol::messages,
     world::WorldMap,
 };
 
 use crate::{
     items::{Items, arrows::Arrow, spawn_crates::MobCrates},
-    players::{GameMode, HandHits, PlayerDamageEvent},
-    skybox::Clock,
+    players::HandHits,
     world::blocks::Blocks,
 };
 
 use super::{
-    Mob, MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target, Wanderer,
+    MobConfig, MobHead, MobHealth, MobSoundCollection, Mobs, RandomMobs, Target, Wanderer,
     pathfinding::PathFinder,
 };
 
@@ -29,16 +25,14 @@ pub struct SkeletonPlugin;
 impl Plugin for SkeletonPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup)
-            .add_systems(Update, (follow_path, attack, add_bow));
+            .add_systems(Update, (follow_path, attack));
     }
 }
 
 #[derive(Component)]
 struct Skeleton {
     shot_timer: Timer,
-    // Player targeted
-    target: Option<Entity>,
-    can_see_target: bool,
+    stopped: bool,
 }
 
 impl Skeleton {
@@ -46,15 +40,9 @@ impl Skeleton {
 
     fn new() -> Self {
         Self {
-            shot_timer: Timer::from_seconds(2.0, TimerMode::Once),
-            target: None,
-            can_see_target: false,
+            shot_timer: Timer::from_seconds(2.0, TimerMode::Repeating),
+            stopped: false,
         }
-    }
-
-    fn set_target(&mut self, target: Option<Entity>) {
-        self.can_see_target = target.is_some();
-        self.target = target;
     }
 }
 
@@ -83,7 +71,7 @@ impl Default for SkeletonBundle {
                 DVec3::new(0.3, 1.8, 0.3),
             ),
             hits: HandHits::default(),
-            wanderer: Wanderer::new(0.0, 1.0),
+            wanderer: Wanderer::new(2.0, 4.0),
             target: Target::default(),
             mob_head: MobHead::new(
                 Skeleton::EYES,
@@ -91,35 +79,6 @@ impl Default for SkeletonBundle {
                 std::f32::consts::FRAC_PI_8,
             ),
         }
-    }
-}
-
-fn add_bow(mut commands: Commands, models: Res<Models>, skeletons: Query<Entity, Added<Skeleton>>) {
-    for entity in skeletons.iter() {
-        let skeleton_model = models.get_config_by_name("skeleton").unwrap();
-        let skeleton_id = skeleton_model.id;
-        let left_arm_bone_id = *skeleton_model.bones.get("left_arm").unwrap();
-
-        let bow_model = models.get_config_by_name("bow").unwrap();
-        let bow_id = bow_model.id;
-
-        commands.entity(entity).with_children(|parent| {
-            parent.spawn((
-                Model::Asset(bow_id),
-                BoneAttachment {
-                    bone_id: left_arm_bone_id,
-                },
-                Transform {
-                    translation: DVec3::new(0.0625, -0.5625, 0.0),
-                    rotation: DQuat::from_euler(EulerRot::XYZ, 1.9, -1.55, -2.11),
-                    scale: DVec3 {
-                        x: 0.05,
-                        y: 0.05,
-                        z: 0.0625,
-                    },
-                },
-            ));
-        });
     }
 }
 
@@ -132,10 +91,6 @@ fn setup(
 ) {
     let skeleton_model = models.get_config_by_name("skeleton").unwrap();
     let skeleton_id = skeleton_model.id;
-    let left_arm_bone_id = *skeleton_model.bones.get("left_arm").unwrap();
-
-    let bow_model = models.get_config_by_name("bow").unwrap();
-    let bow_id = bow_model.id;
 
     let move_animation = skeleton_model.animations["walk"];
     let idle_animation = skeleton_model.animations["idle"];
@@ -153,21 +108,27 @@ fn setup(
         ));
     };
 
-    // let sounds = MobSoundCollection {
-    //     random: vec![
-    //         "zombie_moan_1.ogg".to_owned(),
-    //         "zombie_moan_2.ogg".to_owned(),
-    //         "zombie_moan_3.ogg".to_owned(),
-    //     ],
-    //     damage: vec!["zombie_damage.ogg".to_owned()],
-    //     death: vec!["zombie_death.ogg".to_owned()],
-    // };
+    let sounds = MobSoundCollection {
+        random: vec![
+            "mobs/skeleton/random_1.ogg".to_owned(),
+            "mobs/skeleton/random_2.ogg".to_owned(),
+        ],
+        damage: vec![
+            "mobs/skeleton/random_1.ogg".to_owned(),
+            "mobs/skeleton/random_2.ogg".to_owned(),
+        ],
+        death: vec!["mobs/skeleton/death.ogg".to_owned()],
+    };
 
-    let feather = items.get_id("feather").unwrap();
+    let bone = items.get_id("bone").unwrap();
+    let arrow = items.get_id("arrow").unwrap();
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_skeleton),
-        sounds: MobSoundCollection::default(),
-        drop_table: DropTable::new(1.0, &[(feather, 1.0, 0, 2)]).unwrap(),
+        sounds,
+        drop_tables: vec![
+            DropTable::new(1.0, &[(bone, 1.0, 0, 2)]).unwrap(),
+            DropTable::new(1.0, &[(arrow, 1.0, 0, 2)]).unwrap(),
+        ],
     });
 
     random_mobs.add_hostile(4, mob_id);
@@ -179,21 +140,27 @@ fn setup(
 fn attack(
     mut commands: Commands,
     time: Res<Time>,
+    net: Res<Server>,
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
     models: Res<Models>,
     player_query: Query<(&Transform, &Camera), With<Player>>,
     mut skeletons: Query<(
         &mut Skeleton,
+        &MobHealth,
         &mut PathFinder,
         &HandHits,
         &Transform,
         &mut Target,
     )>,
 ) {
-    for (mut skeleton, mut path_finder, hand_hits, skeleton_transform, mut target) in
+    for (mut skeleton, health, mut path_finder, hand_hits, skeleton_transform, mut target) in
         skeletons.iter_mut()
     {
+        if health.is_dead() {
+            continue;
+        }
+
         if let Some(player_entity) = hand_hits.iter().last() {
             target.set(Some(player_entity));
         }
@@ -206,20 +173,15 @@ fn attack(
             continue;
         };
 
-        if target.in_line_of_sight {
-            skeleton.shot_timer.tick(time.delta());
-
-            if skeleton.shot_timer.is_finished() {
-                skeleton.shot_timer.reset();
-            } else {
-                continue;
-            }
-
+        if target.in_line_of_sight && skeleton.shot_timer.tick(time.delta()).just_finished() {
             let model_config = models.get_config_by_name("arrow").unwrap();
 
             let player_head = player_transform.translation + camera.translation;
             let skeleton_head = skeleton_transform.translation + Skeleton::EYES;
-            let velocity = (player_head - skeleton_head).normalize() * 40.0;
+            let offset = player_head - skeleton_head;
+            let flight_time = offset.length() / Arrow::SPEED;
+            let drop = 0.5 * Arrow::GRAVITY * flight_time * flight_time;
+            let velocity = (offset + DVec3::Y * drop).normalize() * Arrow::SPEED;
             commands.spawn((
                 Model::Asset(model_config.id),
                 Arrow::new(velocity),
@@ -229,14 +191,21 @@ fn attack(
                     scale: DVec3::new(0.0625, 0.0625, 0.0625),
                 },
             ));
-        } else {
-            path_finder.find_path(
-                &world_map,
-                &blocks,
-                skeleton_transform.translation,
-                player_transform.translation,
-            );
+
+            net.broadcast(messages::Sound {
+                position: Some(skeleton_head),
+                volume: 1.0,
+                speed: 1.0,
+                sound: "bow.ogg".to_owned(),
+            });
         }
+
+        path_finder.find_path(
+            &world_map,
+            &blocks,
+            skeleton_transform.translation,
+            target.last_position,
+        );
     }
 }
 
@@ -247,41 +216,56 @@ const JUMP_VELOCITY: f64 = 9.0;
 fn follow_path(
     time: Res<Time>,
     mut skeletons: Query<(
+        &mut Skeleton,
         &MobHealth,
         &Target,
-        &mut Skeleton,
         &mut PathFinder,
         &mut Physics,
         &mut Transform,
     )>,
 ) {
-    for (health, target, mut skeleton, mut path_finder, mut physics, mut transform) in
+    for (mut skeleton, health, target, mut path_finder, mut physics, mut transform) in
         skeletons.iter_mut()
     {
         // Death check because mob entities are kept for a little while after death to show a death pose.
-        // Don't move while in line of sight, stand still and shoot
-        if health.is_dead() || target.in_line_of_sight {
+        if health.is_dead() {
             continue;
         }
 
-        let Some(next_position) = path_finder.next_node(transform.translation) else {
+        // Stand still when close enough, start chasing when too far away
+        let distance = transform
+            .translation
+            .xz()
+            .distance(target.last_position.xz());
+        skeleton.stopped =
+            target.in_line_of_sight && (distance <= 7.0 || (skeleton.stopped && distance <= 9.0));
+
+        let look_at = if skeleton.stopped {
+            target.last_position
+        } else if let Some(next_position) = path_finder.next_node(transform.translation) {
+            next_position
+        } else {
             continue;
         };
 
-        let direction = (next_position - transform.translation)
+        let Some(direction) = (look_at - transform.translation)
             .with_y(0.0)
-            .normalize();
-        let rotation = DQuat::from_rotation_arc(DVec3::NEG_Z, direction);
-        let max_rotation = time.delta_secs_f64() * std::f64::consts::TAU;
-        transform.rotation = transform.rotation.rotate_towards(rotation, max_rotation);
+            .try_normalize()
+        else {
+            continue;
+        };
 
-        // Skeletons stand still while shooting, but should still rotate towards the target
-        if skeleton.can_see_target {
+        let rotation = DQuat::from_rotation_arc(DVec3::NEG_Z, direction);
+        transform.rotation = transform
+            .rotation
+            .rotate_towards(rotation, time.delta_secs_f64() * std::f64::consts::TAU);
+
+        if skeleton.stopped {
             continue;
         }
 
         // TODO: Should not jump out of water, accelerate only so it looks more like a step up.
-        if next_position.y - transform.translation.y > 0.1
+        if look_at.y - transform.translation.y > 0.1
             && physics.is_against_wall()
             && physics.is_grounded()
         {

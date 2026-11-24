@@ -32,7 +32,7 @@ LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 LICENSED UNDER [CC SAMPLING+ 1.0](https://creativecommons.org/licenses/sampling+/1.0/)
 Used for item pickup
 
-[11641 snake sound 1.wav] by Robinhood76
+[11641 snake sound 1.wav](https://freesound.org/people/Robinhood76/sounds/699703/) by Robinhood76
 LICENSED UNDER [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 Used for spider death
 
@@ -51,3 +51,11 @@ Used for explosion
 [Small Sticks Drop](https://freesound.org/people/IENBA/sounds/773759/) by IENBA
 LICENSED UNDER [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)
 Used for skeleton
+
+[02658 single arrows.wav](https://freesound.org/people/Robinhood76/sounds/126464/) by Robinhood76
+LICENSED UNDER [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
+Used for arrow hit
+
+[bow02.wav](https://freesound.org/people/Erdie/sounds/65734/) by Erdie
+LICENSED UNDER [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+Used for bow

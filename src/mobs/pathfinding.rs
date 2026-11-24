@@ -50,6 +50,22 @@ impl PathFinder {
     }
 
     pub fn find_path(&mut self, world_map: &WorldMap, blocks: &Blocks, start: DVec3, goal: DVec3) {
+        self.movement_cost_cache.clear();
+
+        // If the goal is in the air, try to find a solid block below it to give it a goal that can
+        // actually be reached.
+        let mut block_goal = BlockPosition::from(goal);
+        for _ in 0..4 {
+            if self
+                .get_movement_cost(world_map, blocks, block_goal - IVec3::Y)
+                .is_none()
+            {
+                break;
+            }
+            block_goal.y -= 1;
+        }
+        let goal = goal.with_y(block_goal.y as f64);
+
         // Even width npcs walk the edges of the blocks while odd width npcs walk the center of blocks.
         let mut block_start = if self.width % 2 == 0 {
             BlockPosition::from(DVec3::new(start.x.round(), start.y, start.z.round()))
@@ -60,7 +76,6 @@ impl PathFinder {
         // shift it to one of the corners
         block_start -= IVec3::new(self.width / 2, 0, self.width / 2);
 
-        let block_goal = BlockPosition::from(goal);
         if block_start != block_goal && self.goal != block_goal {
             self.start = block_start;
             self.goal = block_goal;
@@ -68,7 +83,6 @@ impl PathFinder {
             return;
         }
 
-        self.movement_cost_cache.clear();
         self.path.clear();
 
         // Direct paths feel much better, so we always try to find one before fallback to grid

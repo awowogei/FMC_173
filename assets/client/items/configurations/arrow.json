@@ -1,0 +1,6 @@
+{
+    "name": "Arrow",
+    "image": "arrow.png",
+    "model": "arrow",
+    "stack_size": 64
+}

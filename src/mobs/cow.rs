@@ -155,7 +155,7 @@ fn setup(
     let mob_id = mobs.add_mob(MobConfig {
         spawn_function: Box::new(spawn_function),
         sounds,
-        drop_table,
+        drop_tables: vec![drop_table],
     });
 
     random_mobs.add_friendly(4, mob_id);

@@ -75,7 +75,7 @@ pub struct Mob {
 pub struct MobConfig {
     pub spawn_function: Box<dyn Fn(&mut EntityCommands) + Send + Sync + 'static>,
     pub sounds: MobSoundCollection,
-    pub drop_table: DropTable,
+    pub drop_tables: Vec<DropTable>,
 }
 
 #[derive(Resource, Default)]
@@ -437,7 +437,7 @@ impl MobHealth {
         self.hearts == 0
     }
 
-    fn is_invincible(&self) -> bool {
+    pub fn is_invincible(&self) -> bool {
         self.invincibility.is_some()
     }
 
@@ -491,9 +491,9 @@ fn handle_hand_hits(
 }
 
 #[derive(Message)]
-struct MobDamageEvent {
-    mob_entity: Entity,
-    damage: u32,
+pub struct MobDamageEvent {
+    pub mob_entity: Entity,
+    pub damage: u32,
 }
 
 const INVINCIBILITY_TIME: f64 = 0.5;
@@ -568,7 +568,11 @@ fn damage_mobs(
             // Use the invincibility to keep the entity alive so the death animation can be shown.
             health.set_invincible(1.0);
 
-            if let Some(mut dropped) = config.drop_table.drop(&mut rng) {
+            for drop_table in &config.drop_tables {
+                let Some(mut dropped) = drop_table.drop(&mut rng) else {
+                    continue;
+                };
+
                 while let Some(item_stack) = dropped.pop() {
                     let random_direction = (rng.next_f32() * std::f32::consts::TAU) as f64;
                     let velocity_x = random_direction.sin() as f64 * 15.0 * rng.next_f32() as f64;

@@ -1,0 +1,6 @@
+{
+    "name": "Bone",
+    "image": "bone.png",
+    "model": "bone",
+    "stack_size": 64
+}
