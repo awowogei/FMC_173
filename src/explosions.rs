@@ -10,7 +10,10 @@ use fmc::{
     world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
 };
 
-use crate::world::blocks::{Blocks, tnt::TntIgnition};
+use crate::{
+    items::DroppedItem,
+    world::blocks::{Blocks, tnt::TntIgnition},
+};
 
 pub struct ExplosionsPlugin;
 impl Plugin for ExplosionsPlugin {
@@ -79,6 +82,7 @@ impl DirectionalStrength {
 }
 
 fn explode(
+    mut commands: Commands,
     net: Res<Server>,
     audio: AudioPlayer,
     blocks: Res<Blocks>,
@@ -160,7 +164,8 @@ fn explode(
                 continue;
             };
 
-            let cost = blocks.get_config(&block_id).blast_resistance * RESISTANCE_SCALE;
+            let block_config = blocks.get_config(&block_id);
+            let cost = block_config.blast_resistance * RESISTANCE_SCALE;
 
             // Because of the manhattan walk we have to adjust the cost downwards when it's a diagonal to get
             // a more spherical result.
@@ -193,6 +198,15 @@ fn explode(
                         block_state: None,
                         block_data: None,
                     });
+
+                    if rng.next_f32() < 0.3
+                        && let Some(item_stack) = block_config.drop(None, &mut rng)
+                    {
+                        commands.spawn((
+                            DroppedItem::new(item_stack),
+                            Transform::from_translation(position.as_dvec3() + DVec3::splat(0.5)),
+                        ));
+                    }
                 }
             }
 

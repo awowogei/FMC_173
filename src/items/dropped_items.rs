@@ -104,7 +104,7 @@ fn spawn_model(
             let random = rng.next_f32() * std::f32::consts::TAU;
             let velocity_x = random.sin() as f64 * 3.0;
             let velocity_z = random.cos() as f64 * 3.0;
-            let velocity_y = 6.5;
+            let velocity_y = 3.0 + rng.next_f32() as f64;
 
             entity_commands.insert(Physics {
                 velocity: DVec3::new(velocity_x, velocity_y, velocity_z),
