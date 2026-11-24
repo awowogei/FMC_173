@@ -3,7 +3,7 @@
     "name": "torch",
     "model": "torch",
     "light": 14,
-    "particle_spawners": [
+    "particle_emitters": [
         {
             "effect": "torch_smoke",
             "texture": "particles/explosion2.png",
