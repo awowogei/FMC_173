@@ -6,15 +6,15 @@ use fmc::{
     items::{ItemId, ItemStack},
     math::DVec3,
     models::{AnimationPlayer, Model, ModelConfig, Models},
-    networking::{NetworkMessage, Server},
-    particle_effects::ParticleEffects,
+    networking::NetworkMessage,
+    particle_effects::{ParticleEffect, ParticleSpawner},
     physics::{Collider, GRAVITY, shapes::Aabb},
     players::{Camera, Player, Target, Targets},
     prelude::*,
     protocol::messages,
     random::Rng,
     visibility::{EntityMap, Visibility},
-    world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
+    world::{BlockUpdate, WorldMap, chunk::ChunkPosition},
 };
 
 use crate::{
@@ -207,12 +207,11 @@ fn block_mining(
     mut commands: Commands,
     time: Res<Time>,
     blocks: Res<Blocks>,
-    net: Res<Server>,
+    audio: AudioPlayer,
+    particles: ParticleSpawner,
     items: Res<Items>,
     models: Res<Models>,
     world_map: Res<WorldMap>,
-    particle_effects: Res<ParticleEffects>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     mut miner_query: Query<(&Inventory, &mut Miner), With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
     mut breaking_model_query: Query<&mut Model, With<BreakingBlockMarker>>,
@@ -265,28 +264,28 @@ fn block_mining(
 
         if continuing {
             if miner.particle_timer.is_finished() {
-                let chunk_position = ChunkPosition::from(hit.block_position);
-                if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
-                    if let Some(particle_effect) = hit_particles(
-                        block_config,
-                        hit.block_face,
-                        hit.hit_position,
-                        &particle_effects,
-                    ) {
-                        net.send_many(subscribers, particle_effect);
-                    }
+                if let Some(texture) = block_config.particle_texture(hit.block_face) {
+                    // Need to offset so the particle's aabb won't be inside the block
+                    let block_face_offset = hit
+                        .block_face
+                        .shift_position(BlockPosition::default())
+                        .as_dvec3()
+                        * 0.15;
 
-                    if let Some(hit_sound) = block_config.sound.hit(rng) {
-                        net.send_many(
-                            subscribers,
-                            messages::Sound {
-                                position: Some(hit.hit_position),
-                                volume: 0.2,
-                                speed: 0.5,
-                                sound: hit_sound.to_owned(),
-                            },
-                        )
-                    }
+                    particles.spawn(
+                        hit.hit_position + block_face_offset,
+                        ParticleEffect::new("block_hit", texture)
+                            // TODO: Silly quat conversion
+                            .with_rotation(hit.block_face.to_quat().as_quat())
+                            .with_color(block_config.particle_color().unwrap_or(Vec4::ONE)),
+                    );
+                }
+
+                if let Some(hit_sound) = block_config.sound.hit(rng) {
+                    audio.play_at(
+                        hit.hit_position,
+                        Sound::new(hit_sound).with_volume(0.2).with_speed(0.5),
+                    );
                 }
             }
             miner.particle_timer.tick(time.delta());
@@ -328,25 +327,16 @@ fn block_mining(
         if breaking_block.progress >= 1.0 {
             let position = mined.block_position.as_dvec3() + DVec3::splat(0.5);
 
-            let chunk_position = ChunkPosition::from(mined.block_position);
-            if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
-                if let Some(particle_effect) =
-                    break_particles(block_config, position, &particle_effects)
-                {
-                    net.send_many(subscribers, particle_effect);
-                }
+            if let Some(texture) = block_config.particle_texture(BlockFace::Bottom) {
+                particles.spawn(
+                    position,
+                    ParticleEffect::new("block_break", texture)
+                        .with_color(block_config.particle_color().unwrap_or(Vec4::ONE)),
+                );
+            }
 
-                if let Some(destroy_sound) = block_config.sound.destroy(rng) {
-                    net.send_many(
-                        subscribers,
-                        messages::Sound {
-                            position: Some(position),
-                            volume: 1.0,
-                            speed: 1.0,
-                            sound: destroy_sound.to_owned(),
-                        },
-                    )
-                }
+            if let Some(destroy_sound) = block_config.sound.destroy(rng) {
+                audio.play_at(position, Sound::new(destroy_sound));
             }
 
             // TODO: Dropping a block like this is too error prone. If two systems break a block at
@@ -462,50 +452,6 @@ fn spawn_breaking_model(
             ))
             .id()
     }
-}
-
-fn hit_particles(
-    block_config: &BlockConfig,
-    block_face: BlockFace,
-    position: DVec3,
-    particle_effects: &ParticleEffects,
-) -> Option<messages::ParticleEffect> {
-    let Some(particle_texture) = block_config.particle_texture(block_face) else {
-        return None;
-    };
-
-    // Need to offset so the particle's aabb won't be inside the block
-    let block_face_offset = block_face
-        .shift_position(BlockPosition::default())
-        .as_dvec3()
-        * 0.15;
-
-    Some(messages::ParticleEffect {
-        id: particle_effects.get_id("block_hit").unwrap(),
-        position: position + block_face_offset,
-        // TODO: Silly quat conversion
-        rotation: block_face.to_quat().as_quat(),
-        texture: particle_texture.to_owned(),
-        color: block_config.particle_color().unwrap_or(Vec4::ONE),
-    })
-}
-
-fn break_particles(
-    block_config: &BlockConfig,
-    position: DVec3,
-    particle_effects: &ParticleEffects,
-) -> Option<messages::ParticleEffect> {
-    let Some(particle_texture) = block_config.particle_texture(BlockFace::Bottom) else {
-        return None;
-    };
-
-    Some(messages::ParticleEffect {
-        id: particle_effects.get_id("block_break").unwrap(),
-        position,
-        rotation: Quat::IDENTITY,
-        texture: particle_texture.to_owned(),
-        color: block_config.particle_color().unwrap_or(Vec4::ONE),
-    })
 }
 
 fn build_breaking_model(

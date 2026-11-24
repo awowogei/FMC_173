@@ -2,12 +2,10 @@ use fmc::{
     audio::{AudioPlayer, Sound},
     blocks::BlockPosition,
     math::DVec3,
-    networking::Server,
-    particle_effects::ParticleEffects,
+    particle_effects::{ParticleEffect, ParticleSpawner},
     prelude::*,
-    protocol::messages,
     random::Rng,
-    world::{BlockUpdate, ChunkSubscriptions, WorldMap, chunk::ChunkPosition},
+    world::{BlockUpdate, WorldMap},
 };
 
 use crate::{
@@ -83,11 +81,9 @@ impl DirectionalStrength {
 
 fn explode(
     mut commands: Commands,
-    net: Res<Server>,
     audio: AudioPlayer,
+    particles: ParticleSpawner,
     blocks: Res<Blocks>,
-    particle_effects: Res<ParticleEffects>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     world_map: Res<WorldMap>,
     mut explosion_events: MessageReader<ExplosionEvent>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
@@ -219,45 +215,24 @@ fn explode(
 
         audio.play_at(explosion.position, Sound::new("explosion.ogg"));
 
-        let chunk_position = ChunkPosition::from(explosion.position);
-        let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) else {
-            continue;
-        };
-
         // White explosion particles
-        net.send_many(
-            subscribers,
-            messages::ParticleEffect {
-                id: particle_effects.get_id("explosion_white").unwrap(),
-                position: explosion.position,
-                rotation: Quat::IDENTITY,
-                texture: "particles/explosion2.png".to_owned(),
-                color: Vec4::ONE,
-            },
+        particles.spawn(
+            explosion.position,
+            ParticleEffect::new("explosion_white", "particles/explosion2.png"),
         );
 
         // Gray explosion particles
-        net.send_many(
-            subscribers,
-            messages::ParticleEffect {
-                id: particle_effects.get_id("explosion_gray").unwrap(),
-                position: explosion.position,
-                rotation: Quat::IDENTITY,
-                texture: "particles/explosion2.png".to_owned(),
-                color: Vec4::splat(0.6).with_w(1.0),
-            },
+        particles.spawn(
+            explosion.position,
+            ParticleEffect::new("explosion_gray", "particles/explosion2.png")
+                .with_color(Vec4::splat(0.6).with_w(1.0)),
         );
 
         // Black particles
-        net.send_many(
-            subscribers,
-            messages::ParticleEffect {
-                id: particle_effects.get_id("explosion_black").unwrap(),
-                position: explosion.position,
-                rotation: Quat::IDENTITY,
-                texture: "particles/explosion2.png".to_owned(),
-                color: Vec4::splat(0.1).with_w(1.0),
-            },
+        particles.spawn(
+            explosion.position,
+            ParticleEffect::new("explosion_black", "particles/explosion2.png")
+                .with_color(Vec4::splat(0.1).with_w(1.0)),
         );
     }
 }
