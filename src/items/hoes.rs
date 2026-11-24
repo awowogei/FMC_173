@@ -1,13 +1,12 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::BlockId,
     items::{Item, ItemStack},
     math::DVec3,
-    networking::Server,
     players::{Player, Target, Targets},
     prelude::*,
-    protocol::messages,
     random::Rng,
-    world::{BlockUpdate, ChunkSubscriptions, chunk::ChunkPosition},
+    world::BlockUpdate,
 };
 
 use super::{DroppedItem, ItemRegistry, ItemUses, Items};
@@ -51,10 +50,9 @@ struct HoeConfig {
 
 fn use_hoe(
     mut commands: Commands,
-    net: Res<Server>,
+    audio: AudioPlayer,
     blocks: Res<Blocks>,
     items: Res<Items>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     player_query: Query<&Targets, With<Player>>,
     mut hoe_uses: Query<(&mut ItemUses, &HoeConfig), Changed<ItemUses>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
@@ -89,21 +87,9 @@ fn use_hoe(
         let soil_id = blocks.get_id("soil");
         let block_config = blocks.get_config(&soil_id);
 
-        let chunk_position = ChunkPosition::from(*block_position);
-        if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
+        if let Some(place_sound) = block_config.sound.place(&mut rng) {
             let position = block_position.as_dvec3() + DVec3::splat(0.5);
-
-            if let Some(place_sound) = block_config.sound.place(&mut rng) {
-                net.send_many(
-                    subscribers,
-                    messages::Sound {
-                        position: Some(position),
-                        volume: 1.0,
-                        speed: 1.0,
-                        sound: place_sound.to_owned(),
-                    },
-                )
-            }
+            audio.play_at(position, Sound::new(place_sound));
         }
 
         block_update_writer.write(BlockUpdate::Replace {

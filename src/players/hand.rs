@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState},
     items::ItemStack,
     math::DVec3,
@@ -740,13 +741,12 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
 }
 
 fn handle_right_clicks(
-    net: Res<Server>,
+    audio: AudioPlayer,
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
     items: Res<Items>,
     item_registry: Res<ItemRegistry>,
     entity_map: Res<EntityMap>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
     mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
     mut item_use_query: Query<&mut ItemUses>,
@@ -845,22 +845,9 @@ fn handle_right_clicks(
 
                         equipped_item_stack.pop();
 
-                        if let Some(subscribers) =
-                            chunk_subscriptions.get_subscribers(&chunk_position)
-                        {
+                        if let Some(place_sound) = block_config.sound.place(&mut rng) {
                             let position = block_position.as_dvec3() + DVec3::splat(0.5);
-
-                            if let Some(place_sound) = block_config.sound.place(&mut rng) {
-                                net.send_many(
-                                    subscribers,
-                                    messages::Sound {
-                                        position: Some(position),
-                                        volume: 1.0,
-                                        speed: 1.0,
-                                        sound: place_sound.to_owned(),
-                                    },
-                                )
-                            }
+                            audio.play_at(position, Sound::new(place_sound));
                         }
 
                         block_update_writer.write(BlockUpdate::Replace {

@@ -1,4 +1,5 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::BlockPosition,
     math::DVec3,
     networking::Server,
@@ -79,6 +80,7 @@ impl DirectionalStrength {
 
 fn explode(
     net: Res<Server>,
+    audio: AudioPlayer,
     blocks: Res<Blocks>,
     particle_effects: Res<ParticleEffects>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
@@ -201,20 +203,12 @@ fn explode(
             }
         }
 
+        audio.play_at(explosion.position, Sound::new("explosion.ogg"));
+
         let chunk_position = ChunkPosition::from(explosion.position);
         let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) else {
             continue;
         };
-
-        net.send_many(
-            subscribers,
-            messages::Sound {
-                position: Some(explosion.position),
-                volume: 1.0,
-                speed: 1.0,
-                sound: "explosion.ogg".to_owned(),
-            },
-        );
 
         // White explosion particles
         net.send_many(

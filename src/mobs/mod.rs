@@ -1,6 +1,7 @@
 use std::{f32::consts::FRAC_PI_2, ops::Mul, time::Duration};
 
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::BlockPosition,
     items::drop_table::DropTable,
     math::{DQuat, DVec2, DVec3},
@@ -500,7 +501,7 @@ const INVINCIBILITY_TIME: f64 = 0.5;
 
 fn damage_mobs(
     mut commands: Commands,
-    net: Res<Server>,
+    audio: AudioPlayer,
     time: Res<Time>,
     mobs: Res<Mobs>,
     mut mob_query: Query<(
@@ -596,26 +597,22 @@ fn damage_mobs(
 
         if health.is_dead() && !config.sounds.death.is_empty() {
             let sound_index = rng.next_usize() % config.sounds.death.len();
-            net.broadcast(messages::Sound {
-                position: Some(transform.translation),
-                volume: 1.0,
-                speed: 1.0,
-                sound: config.sounds.death[sound_index].to_owned(),
-            });
+            audio.play_at(
+                transform.translation,
+                Sound::new(&config.sounds.death[sound_index]),
+            );
         } else if !config.sounds.damage.is_empty() {
             let sound_index = rng.next_usize() % config.sounds.damage.len();
-            net.broadcast(messages::Sound {
-                position: Some(transform.translation),
-                volume: 1.0,
-                speed: 1.0,
-                sound: config.sounds.damage[sound_index].to_owned(),
-            });
+            audio.play_at(
+                transform.translation,
+                Sound::new(&config.sounds.damage[sound_index]),
+            );
         }
     }
 }
 
 fn play_random_sound(
-    net: Res<Server>,
+    audio: AudioPlayer,
     time: Res<Time>,
     mobs: Res<Mobs>,
     mut mob_query: Query<(&Mob, &GlobalTransform, &Visibility, &mut MobRandomSound)>,
@@ -641,12 +638,7 @@ fn play_random_sound(
             }
 
             let sound_index = random_sound.rng.next_usize() % sounds.len();
-            net.broadcast(messages::Sound {
-                position: Some(transform.translation()),
-                volume: 1.0,
-                speed: 1.0,
-                sound: sounds[sound_index].to_owned(),
-            });
+            audio.play_at(transform.translation(), Sound::new(&sounds[sound_index]));
         }
     }
 }

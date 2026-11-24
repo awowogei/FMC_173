@@ -1,15 +1,14 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     items::ItemStack,
     math::DVec3,
     models::{AnimationPlayer, Model, Models},
-    networking::Server,
     physics::{Collider, Physics},
     players::Camera,
     prelude::*,
-    protocol::messages,
     random::Rng,
     visibility::EntityMap,
-    world::{ChunkSubscriptions, chunk::ChunkPosition},
+    world::chunk::ChunkPosition,
 };
 
 use crate::{
@@ -122,9 +121,8 @@ fn spawn_model(
 // animation as the model is spawned.
 fn item_pickup(
     mut commands: Commands,
-    net: Res<Server>,
+    audio: AudioPlayer,
     entity_map: Res<EntityMap>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     mut players: Query<(&GlobalTransform, &mut Inventory, &Health, &Camera)>,
     mut dropped_items: Query<(Entity, &mut DroppedItem, &mut Physics, &Transform)>,
 ) {
@@ -183,19 +181,10 @@ fn item_pickup(
 
             // Pick up when it's just close enough not to disturb the camera view
             if distance_squared < 0.1 {
-                if let Some(subscribers) = chunk_subscriptions
-                    .get_subscribers(&ChunkPosition::from(item_transform.translation))
-                {
-                    net.send_many(
-                        subscribers,
-                        messages::Sound {
-                            position: Some(player_position),
-                            volume: 0.05,
-                            speed: 1.5,
-                            sound: "pickup.ogg".to_owned(),
-                        },
-                    );
-                }
+                audio.play_at(
+                    player_position,
+                    Sound::new("pickup.ogg").with_volume(0.05).with_speed(1.5),
+                );
 
                 // TODO: Auto-filling a slot in the inventory should be a method on Inventory.
                 // It will be done other places.

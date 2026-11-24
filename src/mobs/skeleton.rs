@@ -1,12 +1,11 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, Models},
-    networking::Server,
     physics::{Collider, Physics},
     players::{Camera, Player},
     prelude::*,
-    protocol::messages,
     world::WorldMap,
 };
 
@@ -140,7 +139,7 @@ fn setup(
 fn attack(
     mut commands: Commands,
     time: Res<Time>,
-    net: Res<Server>,
+    audio: AudioPlayer,
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
     models: Res<Models>,
@@ -192,12 +191,7 @@ fn attack(
                 },
             ));
 
-            net.broadcast(messages::Sound {
-                position: Some(skeleton_head),
-                volume: 1.0,
-                speed: 1.0,
-                sound: "bow.ogg".to_owned(),
-            });
+            audio.play_at(skeleton_head, Sound::new("bow.ogg"));
         }
 
         path_finder.find_path(

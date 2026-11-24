@@ -1,12 +1,11 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::BlockPosition,
     math::{DQuat, DVec3},
     models::Model,
-    networking::Server,
     physics::{Collider, Physics},
     players::Player,
     prelude::*,
-    protocol::messages,
     random::Rng,
     visibility::EntityMap,
     world::{ChangedBlockEvent, WorldMap, chunk::ChunkPosition},
@@ -80,7 +79,7 @@ impl StuckArrows {
 fn arrows(
     mut commands: Commands,
     time: Res<Time>,
-    net: Res<Server>,
+    audio: AudioPlayer,
     blocks: Res<Blocks>,
     world_map: Res<WorldMap>,
     entity_map: Res<EntityMap>,
@@ -200,12 +199,7 @@ fn arrows(
             arrow.velocity = DVec3::ZERO;
 
             let sound = Arrow::HIT_SOUNDS[rng.next_usize() % Arrow::HIT_SOUNDS.len()];
-            net.broadcast(messages::Sound {
-                position: Some(transform.translation),
-                volume: 1.0,
-                speed: 1.0,
-                sound: sound.to_owned(),
-            });
+            audio.play_at(transform.translation, Sound::new(sound));
             break;
         }
 

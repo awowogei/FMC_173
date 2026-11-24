@@ -1,12 +1,11 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     blocks::{BlockId, BlockPosition},
     math::DVec3,
     models::{Model, ModelAssetId, ModelColor, Models},
-    networking::Server,
     physics::{Collider, Physics},
     prelude::*,
-    protocol::messages,
-    world::{BlockUpdate, ChunkSubscriptions, chunk::ChunkPosition},
+    world::BlockUpdate,
 };
 
 use super::Blocks;
@@ -53,9 +52,8 @@ fn setup(mut commands: Commands, blocks: Res<Blocks>, models: Res<Models>) {
 
 fn ignite_tnt(
     mut commands: Commands,
-    net: Res<Server>,
+    audio: AudioPlayer,
     config: Res<TntConfig>,
-    chunk_subscriptions: Res<ChunkSubscriptions>,
     mut ignite_reader: MessageReader<TntIgnition>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
@@ -83,18 +81,7 @@ fn ignite_tnt(
             Transform::from_translation(translation),
         ));
 
-        let chunk_position = ChunkPosition::from(ignite.position);
-        if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
-            net.send_many(
-                subscribers,
-                messages::Sound {
-                    position: Some(translation),
-                    volume: 1.0,
-                    speed: 1.0,
-                    sound: "fuse.ogg".to_owned(),
-                },
-            );
-        }
+        audio.play_at(translation, Sound::new("fuse.ogg"));
     }
 }
 

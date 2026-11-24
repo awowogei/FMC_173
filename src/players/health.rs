@@ -1,4 +1,5 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     interfaces::{InterfaceEvents, InterfaceSystems, RegisterInterfaceNode},
     math::DVec3,
     networking::{NetworkMessage, Server},
@@ -184,6 +185,7 @@ fn fall_damage(
 fn change_health(
     mut commands: Commands,
     net: Res<Server>,
+    audio: AudioPlayer,
     time: Res<Time>,
     mut health_query: Query<(
         Entity,
@@ -243,12 +245,7 @@ fn change_health(
         let interface_update = health.take_damage(damage_event.damage);
 
         net.send_one(damage_event.player_entity, interface_update);
-        net.broadcast(messages::Sound {
-            position: Some(transform.translation),
-            volume: 1.0,
-            speed: 1.0,
-            sound: "player_damage.ogg".to_owned(),
-        });
+        audio.play_at(transform.translation, Sound::new("player_damage.ogg"));
 
         if health.is_dead() {
             // Reborrow to allow split borrowing

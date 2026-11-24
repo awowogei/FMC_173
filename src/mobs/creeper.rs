@@ -1,12 +1,11 @@
 use fmc::{
+    audio::{AudioPlayer, Sound},
     items::drop_table::DropTable,
     math::{DQuat, DVec3},
     models::{AnimationPlayer, Model, ModelColor, Models},
-    networking::Server,
     physics::{Collider, Physics},
     players::Player,
     prelude::*,
-    protocol::messages,
     world::WorldMap,
 };
 
@@ -126,7 +125,7 @@ fn setup(
 fn actions(
     mut commands: Commands,
     time: Res<Time>,
-    net: Res<Server>,
+    audio: AudioPlayer,
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
     player_query: Query<&Transform, With<Player>>,
@@ -184,12 +183,7 @@ fn actions(
 
         if ignited {
             if creeper.fuse == 0.0 {
-                net.broadcast(messages::Sound {
-                    position: Some(transform.translation),
-                    volume: 1.0,
-                    speed: 1.0,
-                    sound: "fuse.ogg".to_owned(),
-                });
+                audio.play_at(transform.translation, Sound::new("fuse.ogg"));
             }
             creeper.fuse += time.delta_secs();
         } else {
