@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use fmc::{
     audio::{AudioPlayer, Sound},
     blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState},
-    items::ItemStack,
+    items::{ItemId, ItemStack},
     math::DVec3,
     models::{AnimationPlayer, Model, ModelConfig, Models},
     networking::{NetworkMessage, Server},
@@ -26,14 +26,14 @@ use crate::{
 pub struct HandPlugin;
 impl Plugin for HandPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(MiningEvents::default()).add_systems(
+        app.add_message::<BlockHit>().add_systems(
             Update,
             (
                 handle_left_clicks.in_set(HandSystems),
                 handle_right_clicks
                     .in_set(ItemUseSystems)
                     .in_set(HandSystems),
-                break_blocks.after(handle_left_clicks),
+                block_mining.after(handle_left_clicks),
             ),
         );
     }
@@ -83,7 +83,7 @@ fn handle_left_clicks(
         With<Player>,
     >,
     mut hittable_entities: Query<(&mut HandHits, Option<&Visibility>)>,
-    mut mining_events: ResMut<MiningEvents>,
+    mut block_hits: MessageWriter<BlockHit>,
     mut click_tracker: Local<HashSet<Entity>>,
 ) {
     for (mut hand_hits, _) in hittable_entities.iter_mut() {
@@ -124,16 +124,14 @@ fn handle_left_clicks(
 
                     if block_config.hardness.is_some() {
                         let hit_position = camera_position + camera.forward() * *distance;
-                        mining_events.insert(
-                            *block_position,
-                            (
-                                click.player_entity,
-                                *block_id,
-                                *block_face,
-                                hit_position,
-                                *entity,
-                            ),
-                        );
+                        block_hits.write(BlockHit {
+                            player_entity: click.player_entity,
+                            block_position: *block_position,
+                            block_id: *block_id,
+                            block_face: *block_face,
+                            hit_position,
+                            block_entity: *entity,
+                        });
 
                         break;
                     }
@@ -152,22 +150,60 @@ fn handle_left_clicks(
     }
 }
 
-#[derive(Resource, Deref, DerefMut, Default, Debug)]
-struct MiningEvents(HashMap<BlockPosition, (Entity, BlockId, BlockFace, DVec3, Option<Entity>)>);
+#[derive(Message)]
+struct BlockHit {
+    player_entity: Entity,
+    block_position: BlockPosition,
+    block_id: BlockId,
+    block_face: BlockFace,
+    hit_position: DVec3,
+    block_entity: Option<Entity>,
+}
+
+#[derive(Component)]
+pub struct Miner {
+    target: Option<BlockPosition>,
+    prev_hit: std::time::Instant,
+    particle_timer: Timer,
+}
+
+impl Default for Miner {
+    fn default() -> Self {
+        Self {
+            target: None,
+            prev_hit: std::time::Instant::now(),
+            particle_timer: Timer::from_seconds(0.2, TimerMode::Repeating),
+        }
+    }
+}
+
+struct MiningProgress {
+    block_position: BlockPosition,
+    block_id: BlockId,
+    block_entity: Option<Entity>,
+    progress: f32,
+    tool: Option<ItemId>,
+}
 
 // Keeps the state of how far along a block is to breaking
 #[derive(Debug)]
 struct BreakingBlock {
-    model_entity: Entity,
+    model_entity: Option<Entity>,
     progress: f32,
-    prev_hit: std::time::Instant,
-    particle_timer: Timer,
+    last_progress: std::time::Instant,
+}
+
+#[derive(Default)]
+struct BreakingState {
+    blocks: HashMap<BlockPosition, BreakingBlock>,
+    progress: Vec<MiningProgress>,
+    rng: Rng,
 }
 
 #[derive(Component)]
 struct BreakingBlockMarker;
 
-fn break_blocks(
+fn block_mining(
     mut commands: Commands,
     time: Res<Time>,
     blocks: Res<Blocks>,
@@ -177,56 +213,74 @@ fn break_blocks(
     world_map: Res<WorldMap>,
     particle_effects: Res<ParticleEffects>,
     chunk_subscriptions: Res<ChunkSubscriptions>,
-    inventory_query: Query<&Inventory, With<Player>>,
+    mut miner_query: Query<(&Inventory, &mut Miner), With<Player>>,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
-    mut breaking_model_query: Query<(&mut Model, &mut Visibility), With<BreakingBlockMarker>>,
+    mut breaking_model_query: Query<&mut Model, With<BreakingBlockMarker>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
-    mut mining_events: ResMut<MiningEvents>,
-    mut being_broken: Local<HashMap<BlockPosition, BreakingBlock>>,
-    mut rng: Local<Rng>,
+    mut block_hits: MessageReader<BlockHit>,
+    mut state: Local<BreakingState>,
 ) {
     let now = std::time::Instant::now();
+    let BreakingState {
+        blocks: breaking_blocks,
+        progress: mining_progress,
+        rng,
+    } = &mut *state;
 
-    for (block_position, (player_entity, block_id, block_face, hit_position, maybe_block_entity)) in
-        mining_events.drain()
-    {
-        let block_config = blocks.get_config(&block_id);
+    for hit in block_hits.read() {
+        let Ok((inventory, mut miner)) = miner_query.get_mut(hit.player_entity) else {
+            continue;
+        };
+
+        if miner.target == Some(hit.block_position) && miner.prev_hit == now {
+            continue;
+        }
+
+        let block_config = blocks.get_config(&hit.block_id);
 
         let Some(hardness) = block_config.hardness else {
             // Unbreakable block
             continue;
         };
 
-        let inventory = inventory_query.get(player_entity).unwrap();
+        let tool = inventory.held_item_stack().item().map(|item| item.id);
+        let tool_config = tool.map(|id| items.get_config(&id));
 
-        let tool_config = if let Some(item) = inventory.held_item_stack().item() {
-            Some(items.get_config(&item.id))
+        // The interval between two clicks needs to be short in order to be counted as
+        // holding the button down.
+        let continuing = miner.target == Some(hit.block_position)
+            && (now - miner.prev_hit).as_secs_f32() <= 0.05;
+
+        let progress = if hardness == 0.0 {
+            1.0
+        } else if continuing {
+            let efficiency = match tool_config.and_then(|config| config.tool.as_ref()) {
+                Some(tool) if block_config.tools.contains(&tool.name) => tool.efficiency,
+                _ => 1.0,
+            };
+            (now - miner.prev_hit).as_secs_f32() / hardness * efficiency
         } else {
-            None
+            0.0
         };
 
-        let broken = if let Some(breaking_block) = being_broken.get_mut(&block_position) {
-            if (now - breaking_block.prev_hit).as_secs_f32() > 0.05 {
-                // The interval between two clicks needs to be short in order to be counted as
-                // holding the button down.
-                breaking_block.prev_hit = now;
-                continue;
-            }
-
-            if breaking_block.particle_timer.is_finished() {
-                let chunk_position = ChunkPosition::from(block_position);
+        if continuing {
+            if miner.particle_timer.is_finished() {
+                let chunk_position = ChunkPosition::from(hit.block_position);
                 if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
-                    if let Some(particle_effect) =
-                        hit_particles(block_config, block_face, hit_position, &particle_effects)
-                    {
+                    if let Some(particle_effect) = hit_particles(
+                        block_config,
+                        hit.block_face,
+                        hit.hit_position,
+                        &particle_effects,
+                    ) {
                         net.send_many(subscribers, particle_effect);
                     }
 
-                    if let Some(hit_sound) = block_config.sound.hit(&mut rng) {
+                    if let Some(hit_sound) = block_config.sound.hit(rng) {
                         net.send_many(
                             subscribers,
                             messages::Sound {
-                                position: Some(hit_position),
+                                position: Some(hit.hit_position),
                                 volume: 0.2,
                                 speed: 0.5,
                                 sound: hit_sound.to_owned(),
@@ -235,85 +289,54 @@ fn break_blocks(
                     }
                 }
             }
-
-            // The timer is set to finished on the first hit to show particles immediately.
-            // If we tick before checking if it is finished it will set itself to unfinished again.
-            breaking_block.particle_timer.tick(time.delta());
-
-            let (mut model, mut visibility) = breaking_model_query
-                .get_mut(breaking_block.model_entity)
-                .unwrap();
-
-            let prev_progress = breaking_block.progress;
-
-            let efficiency = match tool_config.and_then(|config| config.tool.as_ref()) {
-                Some(tool) if block_config.tools.contains(&tool.name) => tool.efficiency,
-                _ => 1.0,
-            };
-            breaking_block.progress +=
-                (now - breaking_block.prev_hit).as_secs_f32() / hardness * efficiency;
-            breaking_block.prev_hit = now;
-
-            let progress = breaking_block.progress;
-
-            // Ordering from high to low lets it skip stages.
-            let next_texture = if prev_progress < 0.9 && progress > 0.9 {
-                Some("blocks/breaking_9.png".to_owned())
-            } else if prev_progress < 0.8 && progress > 0.8 {
-                Some("blocks/breaking_8.png".to_owned())
-            } else if prev_progress < 0.7 && progress > 0.7 {
-                Some("blocks/breaking_7.png".to_owned())
-            } else if prev_progress < 0.6 && progress > 0.6 {
-                Some("blocks/breaking_6.png".to_owned())
-            } else if prev_progress < 0.5 && progress > 0.5 {
-                Some("blocks/breaking_5.png".to_owned())
-            } else if prev_progress < 0.4 && progress > 0.4 {
-                Some("blocks/breaking_4.png".to_owned())
-            } else if prev_progress < 0.3 && progress > 0.3 {
-                Some("blocks/breaking_3.png".to_owned())
-            } else if prev_progress < 0.2 && progress > 0.2 {
-                Some("blocks/breaking_2.png".to_owned())
-            } else if prev_progress < 0.1 && progress > 0.1 {
-                *visibility = Visibility::Visible;
-                None
-            } else {
-                None
-            };
-
-            if next_texture.is_some() {
-                // This triggers change detection, so we do it after we determine if the texture
-                // should change.
-                let Model::Custom {
-                    ref mut material_parallax_texture,
-                    ..
-                } = *model
-                else {
-                    unreachable!()
-                };
-                *material_parallax_texture = next_texture;
-            }
-
-            if progress >= 1.0 {
-                true
-            } else {
-                continue;
-            }
+            miner.particle_timer.tick(time.delta());
         } else {
-            false
-        };
+            miner.particle_timer.reset();
+        }
 
-        // When hardness is zero it will break instantly
-        if broken || hardness == 0.0 {
-            let chunk_position = ChunkPosition::from(block_position);
+        miner.target = Some(hit.block_position);
+        miner.prev_hit = now;
+
+        mining_progress.push(MiningProgress {
+            block_position: hit.block_position,
+            block_id: hit.block_id,
+            block_entity: hit.block_entity,
+            progress,
+            tool,
+        });
+    }
+
+    for mined in mining_progress.drain(..) {
+        let block_config = blocks.get_config(&mined.block_id);
+
+        let breaking_block = breaking_blocks
+            .entry(mined.block_position)
+            .or_insert(BreakingBlock {
+                model_entity: None,
+                progress: 0.0,
+                last_progress: now,
+            });
+
+        if breaking_block.progress >= 1.0 {
+            continue;
+        }
+
+        let prev_stage = (breaking_block.progress * 10.0) as u32;
+        breaking_block.progress += mined.progress;
+        breaking_block.last_progress = now;
+
+        if breaking_block.progress >= 1.0 {
+            let position = mined.block_position.as_dvec3() + DVec3::splat(0.5);
+
+            let chunk_position = ChunkPosition::from(mined.block_position);
             if let Some(subscribers) = chunk_subscriptions.get_subscribers(&chunk_position) {
-                let position = block_position.as_dvec3() + DVec3::splat(0.5);
                 if let Some(particle_effect) =
                     break_particles(block_config, position, &particle_effects)
                 {
                     net.send_many(subscribers, particle_effect);
                 }
 
-                if let Some(destroy_sound) = block_config.sound.destroy(&mut rng) {
+                if let Some(destroy_sound) = block_config.sound.destroy(rng) {
                     net.send_many(
                         subscribers,
                         messages::Sound {
@@ -334,95 +357,111 @@ fn break_blocks(
             //     something to signify if it should drop
             // })
             block_update_writer.write(BlockUpdate::Replace {
-                position: block_position,
+                position: mined.block_position,
                 block_id: blocks.get_id("air"),
                 block_state: None,
                 block_data: None,
             });
 
-            let Some(item_stack) = block_config.drop(tool_config, &mut rng) else {
-                continue;
-            };
+            let tool_config = mined.tool.map(|id| items.get_config(&id));
+            if let Some(item_stack) = block_config.drop(tool_config, rng) {
+                commands.spawn((
+                    DroppedItem::new(item_stack),
+                    Transform::from_translation(position),
+                ));
+            }
 
-            commands.spawn((
-                DroppedItem::new(item_stack),
-                Transform::from_translation(block_position.as_dvec3() + DVec3::splat(0.5)),
-            ));
-        } else {
-            let (model, offset) = build_breaking_model(&block_config, &models);
+            continue;
+        }
 
-            let model_entity = if maybe_block_entity
-                .is_some_and(|e| block_model_query.get(e).is_ok())
-            {
-                let child = commands
-                    .spawn((
-                        model,
-                        // The model shouldn't show until some progress has been made
-                        Visibility::Hidden,
-                        BreakingBlockMarker,
-                    ))
-                    .id();
-                commands
-                    .entity(maybe_block_entity.unwrap())
-                    .add_child(child);
-                child
-            } else {
-                let block_state = world_map
-                    .get_block_state(block_position)
-                    .unwrap_or_default();
-                let rotation = block_state
-                    .rotation()
-                    .map(|r| r.as_quat())
-                    .unwrap_or_default();
-                commands
-                    .spawn((
-                        model,
-                        Transform::from_translation(block_position.as_dvec3() + offset.as_dvec3())
-                            // Scale a little so it envelops the block
-                            .with_scale(DVec3::splat(1.001))
-                            .with_rotation(rotation),
-                        // The model shouldn't show until some progress has been made
-                        Visibility::Hidden,
-                        BreakingBlockMarker,
-                    ))
-                    .id()
-            };
+        let stage = (breaking_block.progress * 10.0) as u32;
+        if stage == prev_stage {
+            continue;
+        }
 
-            let particle_timer = Timer::new(
-                std::time::Duration::from_secs_f32(0.2),
-                TimerMode::Repeating,
-            );
-            // Tick the timer so the first particles show up immediately
-            //particle_timer.tick(std::time::Duration::from_secs(1));
+        let texture = format!("blocks/breaking_{}.png", stage);
 
-            being_broken.insert(
-                block_position,
-                BreakingBlock {
-                    model_entity,
-                    progress: 0.0,
-                    prev_hit: std::time::Instant::now(),
-                    particle_timer,
-                },
-            );
+        match breaking_block.model_entity {
+            Some(model_entity) => {
+                if let Ok(mut model) = breaking_model_query.get_mut(model_entity)
+                    && let Model::Custom {
+                        ref mut material_parallax_texture,
+                        ..
+                    } = *model
+                {
+                    *material_parallax_texture = Some(texture);
+                }
+            }
+            None => {
+                breaking_block.model_entity = Some(spawn_breaking_model(
+                    &mut commands,
+                    block_config,
+                    &models,
+                    &world_map,
+                    &block_model_query,
+                    mined.block_position,
+                    mined.block_entity,
+                    texture,
+                ));
+            }
         }
     }
 
-    // Remove break progress after not being hit for 0.5 seconds.
-    being_broken.retain(|_, breaking_block| {
-        let remove_timout = (now - breaking_block.prev_hit).as_secs_f32() > 0.5;
-        let remove_broken = breaking_block.progress >= 1.0;
+    breaking_blocks.retain(|_, breaking_block| {
+        // Remove break progress after not being hit for 0.5 seconds.
+        let timed_out = (now - breaking_block.last_progress).as_secs_f32() > 0.5;
+        let broken = breaking_block.progress >= 1.0;
+        let remove = timed_out || broken;
 
-        if remove_timout || remove_broken {
-            // If the breaking model is the child of a block model, it will be despawned when the
-            // block changes, so it will no longer be available.
-            if let Ok(mut entity) = commands.get_entity(breaking_block.model_entity) {
-                entity.try_despawn();
-            }
-            return false;
-        } else {
-            return true;
+        // If the breaking model is the child of a block model, it will be despawned when the
+        // block changes, so it will no longer be available.
+        if remove
+            && let Some(model_entity) = breaking_block.model_entity
+            && let Ok(mut entity) = commands.get_entity(model_entity)
+        {
+            entity.try_despawn();
         }
+
+        !remove
     });
+}
+
+// Broken out into a function to ease up on the syntax clutter
+fn spawn_breaking_model(
+    commands: &mut Commands,
+    block_config: &BlockConfig,
+    models: &Models,
+    world_map: &WorldMap,
+    block_model_query: &Query<&Transform, (With<BlockPosition>, With<Model>)>,
+    block_position: BlockPosition,
+    block_entity: Option<Entity>,
+    texture: String,
+) -> Entity {
+    let (model, offset) = build_breaking_model(block_config, models, texture);
+
+    if let Some(block_entity) = block_entity.filter(|e| block_model_query.get(*e).is_ok()) {
+        let child = commands.spawn((model, BreakingBlockMarker)).id();
+        commands.entity(block_entity).add_child(child);
+        child
+    } else {
+        let block_state = world_map
+            .get_block_state(block_position)
+            .unwrap_or_default();
+        let rotation = block_state
+            .rotation()
+            .map(|r| r.as_quat())
+            .unwrap_or_default();
+        commands
+            .spawn((
+                model,
+                Transform::from_translation(block_position.as_dvec3() + offset.as_dvec3())
+                    // Scale a little so it envelops the block
+                    .with_scale(DVec3::splat(1.001))
+                    .with_rotation(rotation),
+                BreakingBlockMarker,
+            ))
+            .id()
+    }
 }
 
 fn hit_particles(
@@ -469,8 +508,12 @@ fn break_particles(
     })
 }
 
-fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, Vec3) {
-    if let Some(model_id) = block_config.model {
+fn build_breaking_model(
+    block_config: &BlockConfig,
+    models: &Models,
+    texture: String,
+) -> (Model, Vec3) {
+    let (vertices, normals, uvs, indices, offset) = if let Some(model_id) = block_config.model {
         let model = models.get_config(&model_id);
         let mut mesh_vertices = Vec::new();
         let mut mesh_uvs = Vec::new();
@@ -491,7 +534,7 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
             );
             mesh_normals.extend(&mesh.normals);
             mesh_indices.extend(mesh.indices.iter().map(|index| index + current_index));
-            current_index += mesh.indices.len() as u32;
+            current_index += mesh.vertices.len() as u32;
 
             for (k, uv_quad) in mesh.uvs.chunks_exact(4).enumerate() {
                 let mut min = [f32::MAX, f32::MAX];
@@ -546,23 +589,13 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
 
                 mesh_uvs.extend(uvs);
             }
-            // TODO: This should not break. It messes up consecutive meshes, vertices all over the
-            // place.
-            break;
         }
 
         (
-            Model::Custom {
-                mesh_indices,
-                mesh_vertices,
-                mesh_normals,
-                mesh_uvs: Some(mesh_uvs),
-                material_color_texture: None,
-                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
-                material_alpha_mode: 2,
-                material_alpha_cutoff: 0.0,
-                material_double_sided: false,
-            },
+            mesh_vertices,
+            mesh_normals,
+            mesh_uvs,
+            mesh_indices,
             Vec3::ZERO,
         )
     } else if let Some(quads) = &block_config.quads {
@@ -631,17 +664,10 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
         }
 
         (
-            Model::Custom {
-                mesh_indices,
-                mesh_vertices,
-                mesh_normals,
-                mesh_uvs: Some(mesh_uvs),
-                material_color_texture: None,
-                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
-                material_alpha_mode: 2,
-                material_alpha_cutoff: 0.0,
-                material_double_sided: false,
-            },
+            mesh_vertices,
+            mesh_normals,
+            mesh_uvs,
+            mesh_indices,
             Vec3::splat(0.5),
         )
     } else {
@@ -724,20 +750,28 @@ fn build_breaking_model(block_config: &BlockConfig, models: &Models) -> (Model, 
         }
 
         (
-            Model::Custom {
-                mesh_indices,
-                mesh_vertices,
-                mesh_normals,
-                mesh_uvs: Some(mesh_uvs),
-                material_color_texture: None,
-                material_parallax_texture: Some("blocks/breaking_1.png".to_owned()),
-                material_alpha_mode: 2,
-                material_alpha_cutoff: 0.0,
-                material_double_sided: false,
-            },
+            mesh_vertices,
+            mesh_normals,
+            mesh_uvs,
+            mesh_indices,
             Vec3::splat(0.5),
         )
-    }
+    };
+
+    (
+        Model::Custom {
+            mesh_indices: indices,
+            mesh_vertices: vertices,
+            mesh_normals: normals,
+            mesh_uvs: Some(uvs),
+            material_color_texture: None,
+            material_parallax_texture: Some(texture),
+            material_alpha_mode: 2,
+            material_alpha_cutoff: 0.0,
+            material_double_sided: false,
+        },
+        offset,
+    )
 }
 
 fn handle_right_clicks(

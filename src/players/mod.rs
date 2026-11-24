@@ -224,9 +224,10 @@ pub struct Equipment {
 }
 
 // TODO: Steal "Player" struct name from fmc lib and consolidate some of these components
+//
 /// Components a player consists of
 #[derive(Bundle)]
-pub struct PlayerBundle {
+struct PlayerBundle {
     pub transform: Transform,
     pub camera: Camera,
     pub aabb: Collider,
@@ -236,6 +237,7 @@ pub struct PlayerBundle {
     pub health_bundle: HealthBundle,
     pub game_mode: GameMode,
     pub mob_cap: MobCap,
+    miner: hand::Miner,
 }
 
 impl PlayerBundle {
@@ -259,6 +261,7 @@ impl Default for PlayerBundle {
             health_bundle: HealthBundle::default(),
             game_mode: GameMode::default(),
             mob_cap: MobCap::default(),
+            miner: hand::Miner::default(),
         }
     }
 }
