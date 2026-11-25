@@ -2,7 +2,7 @@ use fmc::{players::Player, prelude::*};
 
 use crate::players::{HealEvent, Inventory};
 
-use super::{ItemEvents, Items};
+use super::{ItemAction, ItemEvents, Items};
 
 pub struct BreadPlugin;
 impl Plugin for BreadPlugin {
@@ -29,12 +29,16 @@ fn eat_bread(
         return;
     };
 
-    for player_entity in events.read() {
-        let mut inventory = player_query.get_mut(player_entity).unwrap();
+    for event in events.read() {
+        if event.action != ItemAction::Use {
+            continue;
+        }
+
+        let mut inventory = player_query.get_mut(event.player_entity).unwrap();
         let held_item = inventory.held_item_stack_mut();
 
         heal_events.write(HealEvent {
-            player_entity,
+            player_entity: event.player_entity,
             healing: 8,
         });
 

@@ -237,7 +237,7 @@ struct PlayerBundle {
     pub health_bundle: HealthBundle,
     pub game_mode: GameMode,
     pub mob_cap: MobCap,
-    miner: hand::Miner,
+    hand: hand::Hand,
 }
 
 impl PlayerBundle {
@@ -261,7 +261,7 @@ impl Default for PlayerBundle {
             health_bundle: HealthBundle::default(),
             game_mode: GameMode::default(),
             mob_cap: MobCap::default(),
-            miner: hand::Miner::default(),
+            hand: hand::Hand::default(),
         }
     }
 }

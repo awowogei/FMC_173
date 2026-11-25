@@ -9,7 +9,7 @@ use fmc::{
     world::BlockUpdate,
 };
 
-use super::{DroppedItem, ItemEvents, Items};
+use super::{DroppedItem, ItemAction, ItemEvents, Items};
 use crate::world::blocks::Blocks;
 
 pub struct HoePlugin;
@@ -49,45 +49,49 @@ fn use_hoe(
     mut block_update_writer: MessageWriter<BlockUpdate>,
     mut rng: Local<Rng>,
 ) {
-    let Ok((mut events, config)) = hoe_query.single_mut() else {
-        return;
-    };
+    for (mut events, config) in hoe_query.iter_mut() {
+        for event in events.read() {
+            if event.action != ItemAction::Use {
+                continue;
+            }
 
-    for player_entity in events.read() {
-        let targets = player_query.get(player_entity).unwrap();
+            let targets = player_query.get(event.player_entity).unwrap();
 
-        let Some(Target::Block {
-            block_position,
-            block_id,
-            ..
-        }) = targets
-            .get_first_block(|block_id| *block_id == config.dirt || *block_id == config.grass)
-        else {
-            continue;
-        };
+            let Some(Target::Block {
+                block_position,
+                block_id,
+                ..
+            }) = targets
+                .get_first_block(|block_id| *block_id == config.dirt || *block_id == config.grass)
+            else {
+                continue;
+            };
 
-        if *block_id == config.grass {
-            let item_config = items.get_config_by_name("wheat_seeds").unwrap();
-            let item_stack = ItemStack::new(item_config.id, 1);
-            commands.spawn((
-                DroppedItem::new(item_stack),
-                Transform::from_translation(block_position.as_dvec3() + DVec3::new(0.5, 1.1, 0.5)),
-            ));
+            if *block_id == config.grass {
+                let item_config = items.get_config_by_name("wheat_seeds").unwrap();
+                let item_stack = ItemStack::new(item_config.id, 1);
+                commands.spawn((
+                    DroppedItem::new(item_stack),
+                    Transform::from_translation(
+                        block_position.as_dvec3() + DVec3::new(0.5, 1.1, 0.5),
+                    ),
+                ));
+            }
+
+            let soil_id = blocks.get_id("soil");
+            let block_config = blocks.get_config(&soil_id);
+
+            if let Some(place_sound) = block_config.sound.place(&mut rng) {
+                let position = block_position.as_dvec3() + DVec3::splat(0.5);
+                audio.play_at(position, Sound::new(place_sound));
+            }
+
+            block_update_writer.write(BlockUpdate::Replace {
+                position: *block_position,
+                block_id: soil_id,
+                block_state: None,
+                block_data: None,
+            });
         }
-
-        let soil_id = blocks.get_id("soil");
-        let block_config = blocks.get_config(&soil_id);
-
-        if let Some(place_sound) = block_config.sound.place(&mut rng) {
-            let position = block_position.as_dvec3() + DVec3::splat(0.5);
-            audio.play_at(position, Sound::new(place_sound));
-        }
-
-        block_update_writer.write(BlockUpdate::Replace {
-            position: *block_position,
-            block_id: soil_id,
-            block_state: None,
-            block_data: None,
-        });
     }
 }

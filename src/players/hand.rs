@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use fmc::{
     audio::{AudioPlayer, Sound},
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
     blocks::{BlockFace, BlockId, BlockPosition, BlockRotation, BlockState},
     items::{ItemId, ItemStack},
     math::DVec3,
@@ -18,7 +19,7 @@ use fmc::{
 };
 
 use crate::{
-    items::{DroppedItem, ItemEvents, ItemSystems, Items},
+    items::{DroppedItem, ItemAction, ItemEvent, ItemEvents, ItemSystems, Items},
     players::Inventory,
     world::blocks::{BlockConfig, Blocks},
 };
@@ -26,7 +27,7 @@ use crate::{
 pub struct HandPlugin;
 impl Plugin for HandPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<BlockHit>().add_systems(
+        app.add_systems(
             Update,
             (
                 handle_left_clicks.in_set(HandSystems),
@@ -76,13 +77,8 @@ fn handle_left_clicks(
     mut clicks: MessageReader<NetworkMessage<messages::LeftClick>>,
     models: Res<Models>,
     blocks: Res<Blocks>,
-    mut player_query: Query<
-        (&Targets, &Camera, &GlobalTransform, &mut AnimationPlayer),
-        With<Player>,
-    >,
+    mut player_query: Query<(&Targets, &mut Hand, &mut AnimationPlayer), With<Player>>,
     mut hittable_entities: Query<(&mut HandHits, Option<&Visibility>)>,
-    mut block_hits: MessageWriter<BlockHit>,
-    mut click_tracker: Local<HashSet<Entity>>,
 ) {
     for (mut hand_hits, _) in hittable_entities.iter_mut() {
         if !hand_hits.player_entities.is_empty() {
@@ -90,88 +86,92 @@ fn handle_left_clicks(
         }
     }
 
+    let hit_animation = models.get_config_by_name("player").unwrap().animations["hit"];
+
     for click in clicks.read() {
-        let (targets, camera, transform, mut animation_player) =
-            player_query.get_mut(click.player_entity).unwrap();
+        let Ok((targets, mut hand, mut animation_player)) =
+            player_query.get_mut(click.player_entity)
+        else {
+            continue;
+        };
 
-        let camera_position = transform.translation() + camera.translation;
-
-        let model = models.get_config_by_name("player").unwrap();
-        let animation = animation_player.play(model.animations["hit"]);
-
-        let mut first_click = false;
-        if click.message == messages::LeftClick::Release {
-            click_tracker.remove(&click.player_entity);
-        } else if click_tracker.insert(click.player_entity) {
-            first_click = true;
-            // If it is a fresh click we always restart the animation. More responsive and let's
-            // you use it to signal others by clicking fast.
-            animation.restart();
-        }
-
-        for target in targets.iter() {
-            match target {
-                Target::Block {
-                    block_position,
-                    block_id,
-                    block_face,
-                    distance,
-                    entity,
-                } => {
-                    let block_config = blocks.get_config(block_id);
-
-                    if block_config.hardness.is_some() {
-                        let hit_position = camera_position + camera.forward() * *distance;
-                        block_hits.write(BlockHit {
-                            player_entity: click.player_entity,
-                            block_position: *block_position,
-                            block_id: *block_id,
-                            block_face: *block_face,
-                            hit_position,
-                            block_entity: *entity,
-                        });
-
-                        break;
-                    }
+        match click.message {
+            messages::LeftClick::Press => {
+                if hand.left_pressed {
+                    continue;
                 }
-                Target::Entity { entity, .. } if first_click => {
-                    if let Ok((mut hits, maybe_visibility)) = hittable_entities.get_mut(*entity) {
-                        if matches!(maybe_visibility, Some(Visibility::Hidden)) {
-                            continue;
+                hand.left_pressed = true;
+                hand.particle_timer.reset();
+
+                // If it is a fresh click we always restart the animation. More responsive and let's
+                // you use it to signal others by clicking fast.
+                animation_player.play(hit_animation).repeat().restart();
+
+                for target in targets.iter() {
+                    match target {
+                        Target::Block { block_id, .. } => {
+                            if blocks.get_config(block_id).hardness.is_some() {
+                                break;
+                            }
                         }
-                        hits.push(click.player_entity);
+                        Target::Entity { entity, .. } => {
+                            if let Ok((mut hits, maybe_visibility)) =
+                                hittable_entities.get_mut(*entity)
+                            {
+                                if matches!(maybe_visibility, Some(Visibility::Hidden)) {
+                                    continue;
+                                }
+                                hits.push(click.player_entity);
+                                break;
+                            }
+                        }
                     }
                 }
-                _ => continue,
+            }
+            messages::LeftClick::Release => {
+                if !hand.left_pressed {
+                    continue;
+                }
+                hand.left_pressed = false;
+
+                animation_player.stop(hit_animation);
             }
         }
     }
 }
 
-#[derive(Message)]
-struct BlockHit {
-    player_entity: Entity,
-    block_position: BlockPosition,
-    block_id: BlockId,
-    block_face: BlockFace,
-    hit_position: DVec3,
-    block_entity: Option<Entity>,
-}
-
 #[derive(Component)]
-pub struct Miner {
-    target: Option<BlockPosition>,
-    prev_hit: std::time::Instant,
+#[component(on_remove = cancel_item_usage_on_disconnect)]
+pub struct Hand {
+    left_pressed: bool,
+    right_pressed: bool,
+    item_in_use: Option<(ItemId, Entity)>,
+    mining_target: Option<BlockPosition>,
     particle_timer: Timer,
 }
 
-impl Default for Miner {
+impl Default for Hand {
     fn default() -> Self {
         Self {
-            target: None,
-            prev_hit: std::time::Instant::now(),
+            left_pressed: false,
+            right_pressed: false,
+            item_in_use: None,
+            mining_target: None,
             particle_timer: Timer::from_seconds(0.2, TimerMode::Repeating),
         }
+    }
+}
+
+fn cancel_item_usage_on_disconnect(mut world: DeferredWorld, context: HookContext) {
+    let Some((_, handler_entity)) = world.get::<Hand>(context.entity).unwrap().item_in_use else {
+        return;
+    };
+
+    if let Some(mut item_events) = world.get_mut::<ItemEvents>(handler_entity) {
+        item_events.push(ItemEvent {
+            player_entity: context.entity,
+            action: ItemAction::Cancel,
+        });
     }
 }
 
@@ -210,11 +210,13 @@ fn block_mining(
     items: Res<Items>,
     models: Res<Models>,
     world_map: Res<WorldMap>,
-    mut miner_query: Query<(&Inventory, &mut Miner), With<Player>>,
+    mut hand_query: Query<
+        (&Targets, &Camera, &GlobalTransform, &Inventory, &mut Hand),
+        With<Player>,
+    >,
     block_model_query: Query<&Transform, (With<BlockPosition>, With<Model>)>,
     mut breaking_model_query: Query<&mut Model, With<BreakingBlockMarker>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
-    mut block_hits: MessageReader<BlockHit>,
     mut state: Local<BreakingState>,
 ) {
     let now = std::time::Instant::now();
@@ -224,80 +226,78 @@ fn block_mining(
         rng,
     } = &mut *state;
 
-    for hit in block_hits.read() {
-        let Ok((inventory, mut miner)) = miner_query.get_mut(hit.player_entity) else {
-            continue;
-        };
-
-        if miner.target == Some(hit.block_position) && miner.prev_hit == now {
+    for (targets, camera, transform, inventory, mut hand) in hand_query.iter_mut() {
+        if !hand.left_pressed {
+            hand.mining_target = None;
             continue;
         }
 
-        let block_config = blocks.get_config(&hit.block_id);
-
-        let Some(hardness) = block_config.hardness else {
-            // Unbreakable block
+        let Some(&Target::Block {
+            block_position,
+            block_id,
+            block_face,
+            distance,
+            entity: block_entity,
+        }) = targets.get_first_block(|block_id| blocks.get_config(block_id).hardness.is_some())
+        else {
+            hand.mining_target = None;
             continue;
         };
+
+        let block_config = blocks.get_config(&block_id);
+        let hardness = block_config.hardness.unwrap();
 
         let tool = inventory.held_item_stack().item().map(|item| item.id);
         let tool_config = tool.map(|id| items.get_config(&id));
 
-        // The interval between two clicks needs to be short in order to be counted as
-        // holding the button down.
-        let continuing = miner.target == Some(hit.block_position)
-            && (now - miner.prev_hit).as_secs_f32() <= 0.05;
+        let is_first_hit = hand.mining_target != Some(block_position);
+        hand.mining_target = Some(block_position);
 
         let progress = if hardness == 0.0 {
             1.0
-        } else if continuing {
+        } else if is_first_hit {
+            0.0
+        } else {
             let efficiency = match tool_config.and_then(|config| config.tool.as_ref()) {
                 Some(tool) if block_config.tools.contains(&tool.name) => tool.efficiency,
                 _ => 1.0,
             };
-            (now - miner.prev_hit).as_secs_f32() / hardness * efficiency
-        } else {
-            0.0
+            time.delta_secs() / hardness * efficiency
         };
 
-        if continuing {
-            if miner.particle_timer.is_finished() {
-                if let Some(texture) = block_config.particle_texture(hit.block_face) {
-                    // Need to offset so the particle's aabb won't be inside the block
-                    let block_face_offset = hit
-                        .block_face
-                        .shift_position(BlockPosition::default())
-                        .as_dvec3()
-                        * 0.15;
+        if hand.particle_timer.is_finished() {
+            let hit_position =
+                transform.translation() + camera.translation + camera.forward() * distance;
 
-                    particles.spawn(
-                        hit.hit_position + block_face_offset,
-                        ParticleEffect::new("block_hit", texture)
-                            // TODO: Silly quat conversion
-                            .with_rotation(hit.block_face.to_quat().as_quat())
-                            .with_color(block_config.particle_color().unwrap_or(Vec4::ONE)),
-                    );
-                }
+            if let Some(texture) = block_config.particle_texture(block_face) {
+                // Need to offset so the particle's aabb won't be inside the block
+                let block_face_offset = block_face
+                    .shift_position(BlockPosition::default())
+                    .as_dvec3()
+                    * 0.15;
 
-                if let Some(hit_sound) = block_config.sound.hit(rng) {
-                    audio.play_at(
-                        hit.hit_position,
-                        Sound::new(hit_sound).with_volume(0.2).with_speed(0.5),
-                    );
-                }
+                particles.spawn(
+                    hit_position + block_face_offset,
+                    ParticleEffect::new("block_hit", texture)
+                        // TODO: Silly quat conversion
+                        .with_rotation(block_face.to_quat().as_quat())
+                        .with_color(block_config.particle_color().unwrap_or(Vec4::ONE)),
+                );
             }
-            miner.particle_timer.tick(time.delta());
-        } else {
-            miner.particle_timer.reset();
-        }
 
-        miner.target = Some(hit.block_position);
-        miner.prev_hit = now;
+            if let Some(hit_sound) = block_config.sound.hit(rng) {
+                audio.play_at(
+                    hit_position,
+                    Sound::new(hit_sound).with_volume(0.2).with_speed(0.5),
+                );
+            }
+        }
+        hand.particle_timer.tick(time.delta());
 
         mining_progress.push(MiningProgress {
-            block_position: hit.block_position,
-            block_id: hit.block_id,
-            block_entity: hit.block_entity,
+            block_position,
+            block_id,
+            block_entity,
             progress,
             tool,
         });
@@ -725,7 +725,7 @@ fn handle_right_clicks(
     items: Res<Items>,
     entity_map: Res<EntityMap>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
-    mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
+    mut player_query: Query<(Entity, &mut Inventory, &Targets, &Camera, &mut Hand), With<Player>>,
     mut item_events_query: Query<&mut ItemEvents>,
     mut hand_interaction_query: Query<&mut HandInteractions>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
@@ -743,8 +743,39 @@ fn handle_right_clicks(
     }
 
     for right_click in clicks.read() {
-        let (mut inventory, targets, camera) =
-            player_query.get_mut(right_click.player_entity).unwrap();
+        let Ok((_, mut inventory, targets, camera, mut hand)) =
+            player_query.get_mut(right_click.player_entity)
+        else {
+            continue;
+        };
+
+        match right_click.message {
+            messages::RightClick::Press => {
+                if hand.right_pressed {
+                    continue;
+                }
+                hand.right_pressed = true;
+            }
+            messages::RightClick::Release => {
+                if !hand.right_pressed {
+                    continue;
+                }
+                hand.right_pressed = false;
+
+                let held_item_id = inventory.held_item_stack().item().map(|item| item.id);
+                if let Some((item_id, handler_entity)) = hand.item_in_use.take()
+                    && held_item_id == Some(item_id)
+                    && let Ok(mut item_events) = item_events_query.get_mut(handler_entity)
+                {
+                    item_events.push(ItemEvent {
+                        player_entity: right_click.player_entity,
+                        action: ItemAction::Release,
+                    });
+                }
+
+                continue;
+            }
+        }
 
         let mut action = ActionOrder::Interact;
 
@@ -800,30 +831,31 @@ fn handle_right_clicks(
                             .unwrap_or_default();
 
                         let replaced_block_transform = Transform {
-                            translation: block_position.as_dvec3() + DVec3::splat(0.5),
+                            translation: replaced_block_position.as_dvec3() + DVec3::splat(0.5),
                             rotation,
                             ..default()
                         };
 
-                        for (model_collider, global_transform) in
-                            model_query.iter_many(entity_map.iter_entities(&chunk_position))
-                        {
-                            if model_collider
-                                .intersection(
-                                    &global_transform.compute_transform(),
-                                    &replaced_block_transform,
-                                    &block_config.collider,
-                                )
-                                .is_some()
-                            {
-                                continue;
-                            }
+                        let obstructed = model_query
+                            .iter_many(entity_map.iter_entities(&chunk_position))
+                            .any(|(model_collider, global_transform)| {
+                                model_collider
+                                    .intersection(
+                                        &global_transform.compute_transform(),
+                                        &replaced_block_transform,
+                                        &block_config.collider,
+                                    )
+                                    .is_some()
+                            });
+
+                        if obstructed {
+                            break;
                         }
 
                         equipped_item_stack.pop();
 
                         if let Some(place_sound) = block_config.sound.place(&mut rng) {
-                            let position = block_position.as_dvec3() + DVec3::splat(0.5);
+                            let position = replaced_block_position.as_dvec3() + DVec3::splat(0.5);
                             audio.play_at(position, Sound::new(place_sound));
                         }
 
@@ -849,12 +881,36 @@ fn handle_right_clicks(
 
                     if let Some(handler_entity) = items.get_event_handler(item.id) {
                         let mut item_events = item_events_query.get_mut(handler_entity).unwrap();
-                        item_events.push(right_click.player_entity);
+                        item_events.push(ItemEvent {
+                            player_entity: right_click.player_entity,
+                            action: ItemAction::Use,
+                        });
+                        hand.item_in_use = Some((item.id, handler_entity));
                     }
 
                     break;
                 }
             }
+        }
+    }
+
+    for (player_entity, inventory, _, _, mut hand) in player_query.iter_mut() {
+        let Some((item_id, handler_entity)) = hand.item_in_use else {
+            continue;
+        };
+
+        let held_item_id = inventory.held_item_stack().item().map(|item| item.id);
+        if held_item_id == Some(item_id) {
+            continue;
+        }
+
+        hand.item_in_use = None;
+
+        if let Ok(mut item_events) = item_events_query.get_mut(handler_entity) {
+            item_events.push(ItemEvent {
+                player_entity,
+                action: ItemAction::Cancel,
+            });
         }
     }
 }

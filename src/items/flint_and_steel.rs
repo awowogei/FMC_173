@@ -5,7 +5,7 @@ use fmc::{
     random::Rng,
 };
 
-use super::{ItemEvents, Items};
+use super::{ItemAction, ItemEvents, Items};
 use crate::world::blocks::{Blocks, tnt::TntIgnition};
 
 pub struct FlintAndSteelPlugin;
@@ -41,8 +41,12 @@ fn use_flint_and_steel(
         return;
     };
 
-    for player_entity in events.read() {
-        let targets = player_query.get(player_entity).unwrap();
+    for event in events.read() {
+        if event.action != ItemAction::Use {
+            continue;
+        }
+
+        let targets = player_query.get(event.player_entity).unwrap();
 
         let Some(Target::Block { block_position, .. }) =
             targets.get_first_block(|block_id| *block_id == config.tnt)

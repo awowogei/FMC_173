@@ -10,7 +10,7 @@ use crate::{
     world::blocks::{Blocks, water::Water},
 };
 
-use super::{ItemEvents, Items};
+use super::{ItemAction, ItemEvents, Items};
 
 pub struct BucketPlugin;
 impl Plugin for BucketPlugin {
@@ -49,8 +49,12 @@ fn use_bucket(
         return;
     };
 
-    for player_entity in events.read() {
-        let (targets, mut inventory) = player_query.get_mut(player_entity).unwrap();
+    for event in events.read() {
+        if event.action != ItemAction::Use {
+            continue;
+        }
+
+        let (targets, mut inventory) = player_query.get_mut(event.player_entity).unwrap();
 
         let Some(source_position) = targets.iter().find_map(|target| match target {
             Target::Block {
@@ -90,8 +94,12 @@ fn use_water_bucket(
         return;
     };
 
-    for player_entity in events.read() {
-        let (targets, mut inventory) = player_query.get_mut(player_entity).unwrap();
+    for event in events.read() {
+        if event.action != ItemAction::Use {
+            continue;
+        }
+
+        let (targets, mut inventory) = player_query.get_mut(event.player_entity).unwrap();
 
         let Some(Target::Block {
             block_position,

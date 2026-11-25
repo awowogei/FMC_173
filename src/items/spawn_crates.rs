@@ -9,7 +9,7 @@ use crate::{
     world::blocks::Blocks,
 };
 
-use super::ItemEvents;
+use super::{ItemAction, ItemEvents};
 
 pub struct CratePlugin;
 impl Plugin for CratePlugin {
@@ -49,31 +49,34 @@ fn use_crate(
     player_query: Query<(&GlobalTransform, &Camera, &Targets), With<Player>>,
     mut crate_query: Query<(&mut ItemEvents, &MobCrate), Changed<ItemEvents>>,
 ) {
-    let Ok((mut events, mob_crate)) = crate_query.single_mut() else {
-        return;
-    };
+    for (mut events, mob_crate) in crate_query.iter_mut() {
+        let mob_config = mobs.get_config(mob_crate.mob_id);
 
-    let mob_config = mobs.get_config(mob_crate.mob_id);
+        for event in events.read() {
+            if event.action != ItemAction::Use {
+                continue;
+            }
 
-    for player_entity in events.read() {
-        let (transform, camera, targets) = player_query.get(player_entity).unwrap();
+            let (transform, camera, targets) = player_query.get(event.player_entity).unwrap();
 
-        let Some(target) =
-            targets.get_first_block(|block_id| blocks.get_config(block_id).is_solid())
-        else {
-            continue;
-        };
+            let Some(target) =
+                targets.get_first_block(|block_id| blocks.get_config(block_id).is_solid())
+            else {
+                continue;
+            };
 
-        let spawn_position =
-            transform.translation() + camera.translation + camera.forward() * target.distance();
+            let spawn_position = transform.translation()
+                + camera.translation
+                + camera.forward() * target.distance();
 
-        let mut entity_commands = commands.spawn((
-            Mob {
-                id: mob_crate.mob_id,
-            },
-            Transform::from_translation(spawn_position),
-        ));
+            let mut entity_commands = commands.spawn((
+                Mob {
+                    id: mob_crate.mob_id,
+                },
+                Transform::from_translation(spawn_position),
+            ));
 
-        (mob_config.spawn_function)(&mut entity_commands);
+            (mob_config.spawn_function)(&mut entity_commands);
+        }
     }
 }

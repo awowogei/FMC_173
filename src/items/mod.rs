@@ -183,29 +183,42 @@ impl Items {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemSystems;
 
-/// Each item that can be used must have a handler entity. When the item is used the player's
-/// entity is pushed to the handler's [ItemEvents].
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ItemAction {
+    Use,
+    Release,
+    Cancel,
+}
+
+#[derive(Clone, Copy)]
+pub struct ItemEvent {
+    pub player_entity: Entity,
+    pub action: ItemAction,
+}
+
+/// Each item that can be used must have a handler entity. When the item is used an [ItemEvent]
+/// is pushed to the handler's [ItemEvents].
 #[derive(Component)]
 #[component(on_add = register_event_handler, on_remove = unregister_event_handler)]
 pub struct ItemEvents {
     item_id: ItemId,
-    player_entities: Vec<Entity>,
+    events: Vec<ItemEvent>,
 }
 
 impl ItemEvents {
     pub fn new(item_id: ItemId) -> Self {
         Self {
             item_id,
-            player_entities: Vec::new(),
+            events: Vec::new(),
         }
     }
 
-    pub fn read(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.player_entities.drain(..)
+    pub fn read(&mut self) -> impl Iterator<Item = ItemEvent> + '_ {
+        self.events.drain(..)
     }
 
-    pub fn push(&mut self, player_entity: Entity) {
-        self.player_entities.push(player_entity);
+    pub fn push(&mut self, event: ItemEvent) {
+        self.events.push(event);
     }
 }
 

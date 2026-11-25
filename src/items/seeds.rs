@@ -5,7 +5,7 @@ use fmc::{
     world::{BlockUpdate, WorldMap},
 };
 
-use super::{ItemEvents, Items};
+use super::{ItemAction, ItemEvents, Items};
 use crate::world::blocks::Blocks;
 
 pub struct SeedPlugin;
@@ -44,8 +44,12 @@ fn use_seeds(
         return;
     };
 
-    for player_entity in events.read() {
-        let targets = player_query.get(player_entity).unwrap();
+    for event in events.read() {
+        if event.action != ItemAction::Use {
+            continue;
+        }
+
+        let targets = player_query.get(event.player_entity).unwrap();
 
         let Some(Target::Block { block_position, .. }) =
             targets.get_first_block(|block_id| *block_id == config.soil)
