@@ -9,36 +9,27 @@ use fmc::{
     world::BlockUpdate,
 };
 
-use super::{DroppedItem, ItemRegistry, ItemUses, Items};
+use super::{DroppedItem, ItemEvents, Items};
 use crate::world::blocks::Blocks;
 
 pub struct HoePlugin;
 impl Plugin for HoePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, register_hoes)
-            .add_systems(Update, use_hoe.after(super::ItemUseSystems));
+            .add_systems(Update, use_hoe.after(super::ItemSystems));
     }
 }
 
-fn register_hoes(
-    mut commands: Commands,
-    blocks: Res<Blocks>,
-    items: Res<Items>,
-    mut usable_items: ResMut<ItemRegistry>,
-) {
+fn register_hoes(mut commands: Commands, blocks: Res<Blocks>, items: Res<Items>) {
     for hoe in ["wooden_hoe", "stone_hoe", "iron_hoe"] {
-        usable_items.insert(
-            items.get_id(hoe).unwrap(),
-            commands
-                .spawn((
-                    ItemUses::default(),
-                    HoeConfig {
-                        dirt: blocks.get_id("dirt"),
-                        grass: blocks.get_id("grass"),
-                    },
-                ))
-                .id(),
-        );
+        let item_id = items.get_id(hoe).unwrap();
+        commands.spawn((
+            ItemEvents::new(item_id),
+            HoeConfig {
+                dirt: blocks.get_id("dirt"),
+                grass: blocks.get_id("grass"),
+            },
+        ));
     }
 }
 
@@ -54,15 +45,15 @@ fn use_hoe(
     blocks: Res<Blocks>,
     items: Res<Items>,
     player_query: Query<&Targets, With<Player>>,
-    mut hoe_uses: Query<(&mut ItemUses, &HoeConfig), Changed<ItemUses>>,
+    mut hoe_query: Query<(&mut ItemEvents, &HoeConfig), Changed<ItemEvents>>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
     mut rng: Local<Rng>,
 ) {
-    let Ok((mut uses, config)) = hoe_uses.single_mut() else {
+    let Ok((mut events, config)) = hoe_query.single_mut() else {
         return;
     };
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let targets = player_query.get(player_entity).unwrap();
 
         let Some(Target::Block {

@@ -9,14 +9,14 @@ use crate::{
     world::blocks::Blocks,
 };
 
-use super::{ItemRegistry, ItemUses};
+use super::ItemEvents;
 
 pub struct CratePlugin;
 impl Plugin for CratePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(MobCrates::default())
             .add_systems(PostStartup, register_crates)
-            .add_systems(Update, use_crate.after(super::ItemUseSystems));
+            .add_systems(Update, use_crate.after(super::ItemSystems));
     }
 }
 
@@ -36,18 +36,9 @@ struct MobCrate {
     mob_id: MobId,
 }
 
-fn register_crates(
-    mut commands: Commands,
-    mob_crates: Res<MobCrates>,
-    mut item_registry: ResMut<ItemRegistry>,
-) {
+fn register_crates(mut commands: Commands, mob_crates: Res<MobCrates>) {
     for (item_id, mob_id) in mob_crates.crates.iter().cloned() {
-        item_registry.insert(
-            item_id,
-            commands
-                .spawn((ItemUses::default(), MobCrate { mob_id }))
-                .id(),
-        );
+        commands.spawn((ItemEvents::new(item_id), MobCrate { mob_id }));
     }
 }
 
@@ -56,15 +47,15 @@ fn use_crate(
     mobs: Res<Mobs>,
     blocks: Res<Blocks>,
     player_query: Query<(&GlobalTransform, &Camera, &Targets), With<Player>>,
-    mut crate_uses: Query<(&mut ItemUses, &MobCrate), Changed<ItemUses>>,
+    mut crate_query: Query<(&mut ItemEvents, &MobCrate), Changed<ItemEvents>>,
 ) {
-    let Ok((mut uses, mob_crate)) = crate_uses.single_mut() else {
+    let Ok((mut events, mob_crate)) = crate_query.single_mut() else {
         return;
     };
 
     let mob_config = mobs.get_config(mob_crate.mob_id);
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let (transform, camera, targets) = player_query.get(player_entity).unwrap();
 
         let Some(target) =

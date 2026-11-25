@@ -2,40 +2,34 @@ use fmc::{players::Player, prelude::*};
 
 use crate::players::{HealEvent, Inventory};
 
-use super::{ItemRegistry, ItemUses, Items};
+use super::{ItemEvents, Items};
 
 pub struct BreadPlugin;
 impl Plugin for BreadPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, register_bread)
-            .add_systems(Update, eat_bread.after(super::ItemUseSystems));
+            .add_systems(Update, eat_bread.after(super::ItemSystems));
     }
 }
 
 #[derive(Component)]
 struct Bread;
 
-fn register_bread(
-    mut commands: Commands,
-    items: Res<Items>,
-    mut usable_items: ResMut<ItemRegistry>,
-) {
-    usable_items.insert(
-        items.get_id("bread").unwrap(),
-        commands.spawn((ItemUses::default(), Bread)).id(),
-    );
+fn register_bread(mut commands: Commands, items: Res<Items>) {
+    let item_id = items.get_id("bread").unwrap();
+    commands.spawn((ItemEvents::new(item_id), Bread));
 }
 
 fn eat_bread(
-    mut bread_uses: Query<&mut ItemUses, (With<Bread>, Changed<ItemUses>)>,
+    mut bread_query: Query<&mut ItemEvents, (With<Bread>, Changed<ItemEvents>)>,
     mut player_query: Query<&mut Inventory, With<Player>>,
     mut heal_events: MessageWriter<HealEvent>,
 ) {
-    let Ok(mut uses) = bread_uses.single_mut() else {
+    let Ok(mut events) = bread_query.single_mut() else {
         return;
     };
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let mut inventory = player_query.get_mut(player_entity).unwrap();
         let held_item = inventory.held_item_stack_mut();
 

@@ -18,7 +18,7 @@ use fmc::{
 };
 
 use crate::{
-    items::{DroppedItem, ItemRegistry, ItemUseSystems, ItemUses, Items},
+    items::{DroppedItem, ItemEvents, ItemSystems, Items},
     players::Inventory,
     world::blocks::{BlockConfig, Blocks},
 };
@@ -30,9 +30,7 @@ impl Plugin for HandPlugin {
             Update,
             (
                 handle_left_clicks.in_set(HandSystems),
-                handle_right_clicks
-                    .in_set(ItemUseSystems)
-                    .in_set(HandSystems),
+                handle_right_clicks.in_set(ItemSystems).in_set(HandSystems),
                 block_mining.after(handle_left_clicks),
             ),
         );
@@ -725,11 +723,10 @@ fn handle_right_clicks(
     world_map: Res<WorldMap>,
     blocks: Res<Blocks>,
     items: Res<Items>,
-    item_registry: Res<ItemRegistry>,
     entity_map: Res<EntityMap>,
     model_query: Query<(&Collider, &GlobalTransform), (With<Model>, Without<BlockPosition>)>,
     mut player_query: Query<(&mut Inventory, &Targets, &Camera), With<Player>>,
-    mut item_use_query: Query<&mut ItemUses>,
+    mut item_events_query: Query<&mut ItemEvents>,
     mut hand_interaction_query: Query<&mut HandInteractions>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
     mut clicks: MessageReader<NetworkMessage<messages::RightClick>>,
@@ -850,9 +847,9 @@ fn handle_right_clicks(
                         break;
                     };
 
-                    if let Some(item_use_entity) = item_registry.get(&item.id) {
-                        let mut uses = item_use_query.get_mut(*item_use_entity).unwrap();
-                        uses.push(right_click.player_entity);
+                    if let Some(handler_entity) = items.get_event_handler(item.id) {
+                        let mut item_events = item_events_query.get_mut(handler_entity).unwrap();
+                        item_events.push(right_click.player_entity);
                     }
 
                     break;

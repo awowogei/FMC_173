@@ -12,7 +12,6 @@ use fmc::{
 };
 use std::collections::{HashMap, HashSet};
 
-use super::{ItemRegistry, ItemUses, Items};
 use crate::{
     mobs::{Mob, MobDamageEvent, MobHealth},
     players::{HealEvent, Inventory, PlayerDamageEvent},

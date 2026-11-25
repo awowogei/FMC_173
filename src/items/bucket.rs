@@ -10,14 +10,14 @@ use crate::{
     world::blocks::{Blocks, water::Water},
 };
 
-use super::{ItemRegistry, ItemUses, Items};
+use super::{ItemEvents, Items};
 
 pub struct BucketPlugin;
 impl Plugin for BucketPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, register_buckets).add_systems(
             Update,
-            (use_bucket, use_water_bucket).after(super::ItemUseSystems),
+            (use_bucket, use_water_bucket).after(super::ItemSystems),
         );
     }
 }
@@ -28,19 +28,12 @@ struct Bucket;
 #[derive(Component)]
 struct WaterBucket;
 
-fn register_buckets(
-    mut commands: Commands,
-    items: Res<Items>,
-    mut usable_items: ResMut<ItemRegistry>,
-) {
-    usable_items.insert(
-        items.get_id("bucket").unwrap(),
-        commands.spawn((ItemUses::default(), Bucket)).id(),
-    );
-    usable_items.insert(
-        items.get_id("water_bucket").unwrap(),
-        commands.spawn((ItemUses::default(), WaterBucket)).id(),
-    );
+fn register_buckets(mut commands: Commands, items: Res<Items>) {
+    let item_id = items.get_id("bucket").unwrap();
+    commands.spawn((ItemEvents::new(item_id), Bucket));
+
+    let item_id = items.get_id("water_bucket").unwrap();
+    commands.spawn((ItemEvents::new(item_id), WaterBucket));
 }
 
 fn use_bucket(
@@ -49,14 +42,14 @@ fn use_bucket(
     world_map: Res<WorldMap>,
     items: Res<Items>,
     mut player_query: Query<(&Targets, &mut Inventory), With<Player>>,
-    mut bucket_uses: Query<&mut ItemUses, (With<Bucket>, Changed<ItemUses>)>,
+    mut bucket_query: Query<&mut ItemEvents, (With<Bucket>, Changed<ItemEvents>)>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
-    let Ok(mut uses) = bucket_uses.single_mut() else {
+    let Ok(mut events) = bucket_query.single_mut() else {
         return;
     };
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let (targets, mut inventory) = player_query.get_mut(player_entity).unwrap();
 
         let Some(source_position) = targets.iter().find_map(|target| match target {
@@ -90,14 +83,14 @@ fn use_water_bucket(
     world_map: Res<WorldMap>,
     items: Res<Items>,
     mut player_query: Query<(&Targets, &mut Inventory), With<Player>>,
-    mut water_bucket_uses: Query<&mut ItemUses, (With<WaterBucket>, Changed<ItemUses>)>,
+    mut water_bucket_query: Query<&mut ItemEvents, (With<WaterBucket>, Changed<ItemEvents>)>,
     mut block_update_writer: MessageWriter<BlockUpdate>,
 ) {
-    let Ok(mut uses) = water_bucket_uses.single_mut() else {
+    let Ok(mut events) = water_bucket_query.single_mut() else {
         return;
     };
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let (targets, mut inventory) = player_query.get_mut(player_entity).unwrap();
 
         let Some(Target::Block {

@@ -4,6 +4,7 @@ use fmc::{
     assets::AssetSet,
     blocks::BlockId,
     database::Database,
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
     items::{ITEM_CONFIG_PATH, ItemConfigEvent, ItemId},
     models::{ModelAssetId, Models},
     prelude::*,
@@ -27,8 +28,7 @@ pub use dropped_items::DroppedItem;
 pub struct ItemPlugin;
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(ItemRegistry::default())
-            .add_systems(PreStartup, load_items.after(AssetSet::Items))
+        app.add_systems(PreStartup, load_items.after(AssetSet::Items))
             .add_plugins(commands::ItemCommandsPlugin)
             .add_plugins(dropped_items::DroppedItemsPlugin)
             .add_plugins(crafting::CraftingPlugin)
@@ -53,6 +53,7 @@ pub(crate) fn load_items(
     let mut items = Items {
         configs: HashMap::new(),
         ids: HashMap::new(),
+        event_handlers: HashMap::new(),
     };
 
     for event in item_config_events.read() {
@@ -145,12 +146,13 @@ struct ItemConfigJson {
     fuel: Option<f32>,
 }
 
-/// Names and configs of all the items in the game.
+/// Contains the names, ids, configs and event handlers of all the items in the game.
 #[derive(Resource)]
 pub struct Items {
     configs: HashMap<ItemId, ItemConfig>,
     // Map from filename/item name to item id.
     ids: HashMap<String, ItemId>,
+    event_handlers: HashMap<ItemId, Entity>,
 }
 
 impl Items {
@@ -171,42 +173,58 @@ impl Items {
     pub fn ids(&self) -> &HashMap<String, ItemId> {
         return &self.ids;
     }
-}
 
-/// Order systems that handle item uses after this [SystemSet] to minimize latency
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ItemUseSystems;
-
-// TODO: Transfer this over to fmc lib and have the entity be part of the ItemConfig of the item
-// that can be used?
-//
-/// Each item that can be used must have a handler entity registered here. When the item is used
-/// the entity's [ItemUses] will be updated with the entity of the player that used it.
-#[derive(Resource, Deref, DerefMut, Default)]
-pub struct ItemRegistry(HashMap<ItemId, Entity>);
-
-impl ItemRegistry {
-    /// Register a new handler for an item
-    pub fn insert(&mut self, item_id: ItemId, handler_entity: Entity) {
-        self.0.insert(item_id, handler_entity);
+    pub fn get_event_handler(&self, item_id: ItemId) -> Option<Entity> {
+        return self.event_handlers.get(&item_id).copied();
     }
 }
 
-// TODO: This is such an ugly way to do it, same with how blocks do interactions too.
-// Surely there must be a better way...
-//
-/// List of player entities that have used the item during the last tick.
-///
-/// Attach this to an entity and register the entity as a handler in the [ItemRegistry].
-#[derive(Component, Default)]
-pub struct ItemUses(Vec<Entity>);
+/// Order systems that read [ItemEvents] after this [SystemSet] to minimize latency
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ItemSystems;
 
-impl ItemUses {
+/// Each item that can be used must have a handler entity. When the item is used the player's
+/// entity is pushed to the handler's [ItemEvents].
+#[derive(Component)]
+#[component(on_add = register_event_handler, on_remove = unregister_event_handler)]
+pub struct ItemEvents {
+    item_id: ItemId,
+    player_entities: Vec<Entity>,
+}
+
+impl ItemEvents {
+    pub fn new(item_id: ItemId) -> Self {
+        Self {
+            item_id,
+            player_entities: Vec::new(),
+        }
+    }
+
     pub fn read(&mut self) -> impl Iterator<Item = Entity> + '_ {
-        self.0.drain(..)
+        self.player_entities.drain(..)
     }
 
     pub fn push(&mut self, player_entity: Entity) {
-        self.0.push(player_entity);
+        self.player_entities.push(player_entity);
     }
+}
+
+fn register_event_handler(mut world: DeferredWorld, context: HookContext) {
+    let item_id = world.get::<ItemEvents>(context.entity).unwrap().item_id;
+    let mut items = world.resource_mut::<Items>();
+    if items.event_handlers.contains_key(&item_id) {
+        panic!(
+            "Item '{}' already has a handler",
+            items.get_config(&item_id).name
+        );
+    }
+    items.event_handlers.insert(item_id, context.entity);
+}
+
+fn unregister_event_handler(mut world: DeferredWorld, context: HookContext) {
+    let item_id = world.get::<ItemEvents>(context.entity).unwrap().item_id;
+    world
+        .resource_mut::<Items>()
+        .event_handlers
+        .remove(&item_id);
 }

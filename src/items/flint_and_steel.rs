@@ -5,14 +5,14 @@ use fmc::{
     random::Rng,
 };
 
-use super::{ItemRegistry, ItemUses, Items};
+use super::{ItemEvents, Items};
 use crate::world::blocks::{Blocks, tnt::TntIgnition};
 
 pub struct FlintAndSteelPlugin;
 impl Plugin for FlintAndSteelPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, register_flint_and_steel)
-            .add_systems(Update, use_flint_and_steel.after(super::ItemUseSystems));
+            .add_systems(Update, use_flint_and_steel.after(super::ItemSystems));
     }
 }
 
@@ -21,36 +21,27 @@ struct FlintAndSteelConfig {
     tnt: BlockId,
 }
 
-fn register_flint_and_steel(
-    mut commands: Commands,
-    blocks: Res<Blocks>,
-    items: Res<Items>,
-    mut usable_items: ResMut<ItemRegistry>,
-) {
-    usable_items.insert(
-        items.get_id("flint_and_steel").unwrap(),
-        commands
-            .spawn((
-                ItemUses::default(),
-                FlintAndSteelConfig {
-                    tnt: blocks.get_id("tnt"),
-                },
-            ))
-            .id(),
-    );
+fn register_flint_and_steel(mut commands: Commands, blocks: Res<Blocks>, items: Res<Items>) {
+    let item_id = items.get_id("flint_and_steel").unwrap();
+    commands.spawn((
+        ItemEvents::new(item_id),
+        FlintAndSteelConfig {
+            tnt: blocks.get_id("tnt"),
+        },
+    ));
 }
 
 fn use_flint_and_steel(
     player_query: Query<&Targets, With<Player>>,
-    mut uses: Query<(&mut ItemUses, &FlintAndSteelConfig), Changed<ItemUses>>,
+    mut flint_and_steel_query: Query<(&mut ItemEvents, &FlintAndSteelConfig), Changed<ItemEvents>>,
     mut ignite_writer: MessageWriter<TntIgnition>,
     mut rng: Local<Rng>,
 ) {
-    let Ok((mut uses, config)) = uses.single_mut() else {
+    let Ok((mut events, config)) = flint_and_steel_query.single_mut() else {
         return;
     };
 
-    for player_entity in uses.read() {
+    for player_entity in events.read() {
         let targets = player_query.get(player_entity).unwrap();
 
         let Some(Target::Block { block_position, .. }) =
