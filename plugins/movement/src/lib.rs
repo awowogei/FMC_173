@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 
 use fmc_client_api::{
     self as fmc,
@@ -25,7 +25,6 @@ type ModelId = u32;
 #[derive(Default)]
 struct MovementPlugin {
     properties: PlayerProperties,
-    pressed_keys: HashSet<fmc::Key>,
     // Caching delta time to reduce interface hits
     delta_time: f32,
     // Because of custom models we have to have unique collision configs for each model.
@@ -65,22 +64,23 @@ impl fmc::Plugin for MovementPlugin {
         self.delta_time = fmc::delta_time();
         self.properties.last_jump += self.delta_time;
         self.properties.last_spacebar += self.delta_time;
-        self.update_keyboard_input();
+        let keyboard = fmc::get_keyboard();
+        self.toggle_flight(&keyboard);
         match self.properties.game_mode {
             GameMode::Spectator => {
-                self.flight_controller();
+                self.flight_controller(&keyboard);
                 self.no_collision();
             }
             GameMode::Creative => {
                 if self.properties.is_flying {
-                    self.flight_controller();
+                    self.flight_controller(&keyboard);
                 } else {
-                    self.walking_controller();
+                    self.walking_controller(&keyboard);
                 }
                 self.collision();
             }
             GameMode::Survival => {
-                self.walking_controller();
+                self.walking_controller(&keyboard);
                 self.collision();
             }
         }
@@ -143,26 +143,21 @@ impl fmc::Plugin for MovementPlugin {
 }
 
 impl MovementPlugin {
-    fn update_keyboard_input(&mut self) {
-        for key_update in fmc::keyboard_input() {
-            if key_update.released {
-                if self.properties.game_mode == GameMode::Creative
-                    && key_update.key == fmc::Key::Space
-                {
-                    if self.properties.last_spacebar < 0.25 {
-                        self.properties.is_flying = !self.properties.is_flying;
-                        self.properties.velocity = Vec3::ZERO;
-                    }
-                    self.properties.last_spacebar = 0.0;
-                }
-                self.pressed_keys.remove(&key_update.key);
-            } else {
-                self.pressed_keys.insert(key_update.key);
-            }
+    fn toggle_flight(&mut self, keyboard: &fmc::Keyboard) {
+        if self.properties.game_mode != GameMode::Creative
+            || !keyboard.just_released(fmc::Keys::SPACE)
+        {
+            return;
         }
+
+        if self.properties.last_spacebar < 0.25 {
+            self.properties.is_flying = !self.properties.is_flying;
+            self.properties.velocity = Vec3::ZERO;
+        }
+        self.properties.last_spacebar = 0.0;
     }
 
-    fn walking_controller(&mut self) {
+    fn walking_controller(&mut self, keyboard: &fmc::Keyboard) {
         let camera_transform = fmc::get_camera_transform();
         let camera_forward = camera_transform.forward();
         let forward = Vec3::new(camera_forward.x, 0., camera_forward.z);
@@ -171,13 +166,13 @@ impl MovementPlugin {
         let mut horizontal_acceleration = Vec3::ZERO;
         let mut vertical_acceleration = GRAVITY;
 
-        for key in self.pressed_keys.iter() {
-            match *key {
-                fmc::Key::KeyW => horizontal_acceleration += forward,
-                fmc::Key::KeyS => horizontal_acceleration -= forward,
-                fmc::Key::KeyA => horizontal_acceleration -= sideways,
-                fmc::Key::KeyD => horizontal_acceleration += sideways,
-                fmc::Key::Space => {
+        for key in keyboard.pressed.iter() {
+            match key {
+                fmc::Keys::KEY_W => horizontal_acceleration += forward,
+                fmc::Keys::KEY_S => horizontal_acceleration -= forward,
+                fmc::Keys::KEY_A => horizontal_acceleration -= sideways,
+                fmc::Keys::KEY_D => horizontal_acceleration += sideways,
+                fmc::Keys::SPACE => {
                     if self.properties.is_swimming {
                         vertical_acceleration.y = 30.0
                     } else if self.properties.is_grounded.y && self.properties.last_jump > JUMP_TIME
@@ -186,7 +181,7 @@ impl MovementPlugin {
                         self.properties.velocity.y = JUMP_VELOCITY;
                     }
                 }
-                fmc::Key::Shift => {
+                fmc::Keys::SHIFT => {
                     if self.properties.is_swimming {
                         vertical_acceleration.y = -30.0
                     } else if self.properties.climbing.is_some() {
@@ -220,7 +215,7 @@ impl MovementPlugin {
         self.properties.acceleration = horizontal_acceleration + vertical_acceleration;
     }
 
-    fn flight_controller(&mut self) {
+    fn flight_controller(&mut self, keyboard: &fmc::Keyboard) {
         let camera_transform = fmc::get_camera_transform();
         let camera_forward = camera_transform.forward();
         let forward = Vec3::new(camera_forward.x, 0., camera_forward.z);
@@ -230,16 +225,16 @@ impl MovementPlugin {
 
         let mut acceleration = Vec3::ZERO;
 
-        for key in self.pressed_keys.iter() {
-            match *key {
-                fmc::Key::KeyW => acceleration += forward,
-                fmc::Key::KeyS => acceleration -= forward,
-                fmc::Key::KeyA => acceleration -= sideways,
-                fmc::Key::KeyD => acceleration += sideways,
-                fmc::Key::Space => {
+        for key in keyboard.pressed.iter() {
+            match key {
+                fmc::Keys::KEY_W => acceleration += forward,
+                fmc::Keys::KEY_S => acceleration -= forward,
+                fmc::Keys::KEY_A => acceleration -= sideways,
+                fmc::Keys::KEY_D => acceleration += sideways,
+                fmc::Keys::SPACE => {
                     self.properties.velocity.y = JUMP_VELOCITY * 2.0;
                 }
-                fmc::Key::Shift => {
+                fmc::Keys::SHIFT => {
                     self.properties.velocity.y = -JUMP_VELOCITY * 2.0;
                 }
                 _ => (),
@@ -250,7 +245,7 @@ impl MovementPlugin {
             acceleration = acceleration.normalize() * 30.0;
         }
 
-        if self.pressed_keys.contains(&fmc::Key::Control) {
+        if keyboard.pressed(fmc::Keys::CONTROL) {
             acceleration *= 10.0;
         }
 
